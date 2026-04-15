@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>My Profile — SmartCare</title>
+  <link rel="stylesheet" href="/css/styles.css"/>
+  <style>
+    .profile-avatar { width:96px; height:96px; border-radius:50%; background:linear-gradient(135deg,var(--primary),var(--secondary)); display:flex; align-items:center; justify-content:center; color:#fff; font-weight:800; font-size:2.25rem; margin:0 auto 16px; }
+    .info-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+    .info-item label { font-size:.75rem; color:var(--text-muted); font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
+    .info-item p { font-weight:600; margin-top:3px; }
+    .family-card { background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius); padding:16px; margin-bottom:12px; display:flex; align-items:center; gap:12px; }
+    .family-avatar { width:44px; height:44px; border-radius:50%; background:linear-gradient(135deg,var(--primary),var(--secondary)); display:flex; align-items:center; justify-content:center; color:#fff; font-weight:700; flex-shrink:0; }
+    @media(max-width:600px){ .info-grid { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+
+<nav class="navbar">
+  <div class="container nav-inner">
+    <a href="/" class="nav-brand">
+      <svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#2E86C1"/><path d="M20 10v20M10 20h20" stroke="white" stroke-width="4" stroke-linecap="round"/></svg>
+      Smart<span>Care</span>
+    </a>
+    <div class="nav-links">
+      <a href="/patient-dashboard.html">Dashboard</a>
+      <a href="/book-appointment.html">Book Appointment</a>
+      <a href="/profile.html" class="active">Profile</a>
+    </div>
+    <div class="nav-actions">
+      <div style="position:relative">
+        <div class="nav-avatar" id="navAvatar"></div>
+        <div class="card hidden" id="navUserMenu" style="position:absolute;right:0;top:48px;width:180px;padding:8px;z-index:200">
+          <p style="padding:8px 12px;font-weight:600;font-size:.875rem" id="navUserName"></p>
+          <hr style="border:none;border-top:1px solid var(--border);margin:4px 0">
+          <button id="logoutBtn" class="btn-ghost btn w-100" style="justify-content:flex-start;padding:8px 12px;border-radius:8px;font-size:.875rem">🚪 Logout</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<div style="max-width:900px;margin:0 auto;padding:32px 24px">
+  <div style="display:grid;grid-template-columns:300px 1fr;gap:24px;align-items:start">
+
+    <!-- Left: Avatar Card -->
+    <div>
+      <div class="card text-center" style="padding:28px">
+        <div class="profile-avatar" id="profileInitial">?</div>
+        <h3 id="profileName">Loading...</h3>
+        <p style="color:var(--text-muted);font-size:.875rem;margin-top:4px" id="profileEmail"></p>
+        <span class="badge badge-primary mt-2" id="profileRole" style="margin:8px auto;display:inline-flex"></span>
+        <div style="margin-top:20px;display:flex;flex-direction:column;gap:8px">
+          <a href="/patient-dashboard.html" class="btn btn-outline w-100">📊 Dashboard</a>
+          <a href="/book-appointment.html" class="btn btn-primary w-100">📅 Book Appointment</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Details -->
+    <div>
+      <div id="alertBox"></div>
+
+      <!-- View Mode -->
+      <div class="card" id="viewCard">
+        <div class="card-header">
+          <h3>Personal Information</h3>
+          <button class="btn btn-outline btn-sm" onclick="enterEdit()">✏️ Edit Profile</button>
+        </div>
+        <div class="card-body">
+          <div class="info-grid" id="infoGrid">
+            <div class="page-loader"><span class="loader loader-dark"></span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Edit Mode -->
+      <div class="card hidden" id="editCard">
+        <div class="card-header">
+          <h3>Edit Profile</h3>
+          <button class="btn btn-ghost btn-sm" onclick="cancelEdit()">✕ Cancel</button>
+        </div>
+        <div class="card-body">
+          <div class="form-row">
+            <div class="form-group"><label class="form-label">Full Name *</label><input class="form-control" id="edit_name"/></div>
+            <div class="form-group"><label class="form-label">Phone *</label><input class="form-control" id="edit_phone"/></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label class="form-label">Gender</label>
+              <select class="form-control" id="edit_gender"><option value="">Select</option><option value="male">Male</option><option value="female">Female</option><option value="other">Other</option></select>
+            </div>
+            <div class="form-group"><label class="form-label">Date of Birth</label><input type="date" class="form-control" id="edit_dob"/></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label class="form-label">Blood Group</label>
+              <select class="form-control" id="edit_blood"><option value="">Select</option><option>A+</option><option>A-</option><option>B+</option><option>B-</option><option>O+</option><option>O-</option><option>AB+</option><option>AB-</option></select>
+            </div>
+            <div class="form-group"><label class="form-label">City / Address</label><input class="form-control" id="edit_address"/></div>
+          </div>
+        </div>
+        <div class="card-footer">
+          <button class="btn btn-primary" id="saveBtn" onclick="saveProfile()">💾 Save Changes</button>
+        </div>
+      </div>
+
+      <!-- Family Members -->
+      <div class="card mt-3">
+        <div class="card-header">
+          <h3>Family Members</h3>
+          <button class="btn btn-primary btn-sm" onclick="openModal('addFamilyModal')">+ Add Member</button>
+        </div>
+        <div class="card-body" id="familyList">
+          <div class="page-loader"><span class="loader loader-dark"></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add Family Modal -->
+<div class="modal-overlay" id="addFamilyModal">
+  <div class="modal">
+    <div class="modal-header"><h3>Add Family Member</h3><button class="modal-close" onclick="closeModal('addFamilyModal')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label class="form-label">Name *</label><input class="form-control" id="fm_name" placeholder="Family member's name"/></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Relation</label>
+          <select class="form-control" id="fm_relation"><option value="">Select</option><option value="spouse">Spouse</option><option value="child">Child</option><option value="parent">Parent</option><option value="sibling">Sibling</option><option value="other">Other</option></select>
+        </div>
+        <div class="form-group"><label class="form-label">Gender</label>
+          <select class="form-control" id="fm_gender"><option value="">Select</option><option value="male">Male</option><option value="female">Female</option><option value="other">Other</option></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Date of Birth</label><input type="date" class="form-control" id="fm_dob"/></div>
+        <div class="form-group"><label class="form-label">Blood Group</label>
+          <select class="form-control" id="fm_blood"><option value="">Select</option><option>A+</option><option>A-</option><option>B+</option><option>B-</option><option>O+</option><option>O-</option><option>AB+</option><option>AB-</option></select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('addFamilyModal')">Cancel</button>
+      <button class="btn btn-primary" id="saveFamilyBtn" onclick="addFamilyMember()">Add Member</button>
+    </div>
+  </div>
+</div>
+
+<script src="/js/utils.js"></script>
+<script>
+if (!Auth.requireAuth()) throw new Error('Unauthorized');
+
+let profileData = null;
+
+async function loadProfile() {
+  const data = await api.get('/auth/profile');
+  if (!data?.success) return;
+  profileData = data.user;
+
+  // Avatar & header
+  const initials = data.user.name?.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2) || 'U';
+  setText('#profileInitial', initials);
+  setText('#profileName', data.user.name);
+  setText('#profileEmail', data.user.email);
+  setHTML('#profileRole', `👤 ${data.user.role.charAt(0).toUpperCase()+data.user.role.slice(1)}`);
+
+  // Info grid
+  setHTML('#infoGrid', `
+    <div class="info-item"><label>Full Name</label><p>${data.user.name || '—'}</p></div>
+    <div class="info-item"><label>Email</label><p>${data.user.email || '—'}</p></div>
+    <div class="info-item"><label>Phone</label><p>${data.user.phone || '—'}</p></div>
+    <div class="info-item"><label>Gender</label><p>${data.user.gender || '—'}</p></div>
+    <div class="info-item"><label>Date of Birth</label><p>${data.user.dob ? formatDate(data.user.dob) : '—'}</p></div>
+    <div class="info-item"><label>Blood Group</label><p>${data.user.blood_group ? `<span class="badge badge-danger">${data.user.blood_group}</span>` : '—'}</p></div>
+    <div class="info-item"><label>Address</label><p>${data.user.address || '—'}</p></div>
+    <div class="info-item"><label>Member Since</label><p>${formatDate(data.user.created_at)}</p></div>
+  `);
+
+  // Family members
+  if (data.family_members?.length) {
+    setHTML('#familyList', data.family_members.map(fm => `
+      <div class="family-card">
+        <div class="family-avatar">${fm.name[0].toUpperCase()}</div>
+        <div>
+          <div style="font-weight:700">${fm.name}</div>
+          <div style="font-size:.8125rem;color:var(--text-muted)">${fm.relation || '—'} ${fm.blood_group ? '· '+fm.blood_group : ''} ${fm.dob ? '· '+formatDate(fm.dob) : ''}</div>
+        </div>
+      </div>`).join(''));
+  } else {
+    setHTML('#familyList', `<p style="color:var(--text-muted);text-align:center;padding:20px">No family members added yet. Add members to book appointments for them.</p>`);
+  }
+}
+
+function enterEdit() {
+  if (!profileData) return;
+  $('#edit_name').value  = profileData.name || '';
+  $('#edit_phone').value = profileData.phone || '';
+  $('#edit_gender').value = profileData.gender || '';
+  $('#edit_dob').value   = profileData.dob?.split('T')[0] || '';
+  $('#edit_blood').value = profileData.blood_group || '';
+  $('#edit_address').value = profileData.address || '';
+  hide('#viewCard'); show('#editCard');
+}
+
+function cancelEdit() { show('#viewCard'); hide('#editCard'); }
+
+async function saveProfile() {
+  const btn = $('#saveBtn');
+  btn.innerHTML = '<span class="loader"></span> Saving...';
+  btn.disabled = true;
+
+  const data = await api.put('/auth/profile', {
+    name:        $('#edit_name').value.trim(),
+    phone:       $('#edit_phone').value.trim(),
+    gender:      $('#edit_gender').value,
+    dob:         $('#edit_dob').value || null,
+    blood_group: $('#edit_blood').value || null,
+    address:     $('#edit_address').value.trim()
+  });
+
+  btn.innerHTML = '💾 Save Changes'; btn.disabled = false;
+
+  if (data?.success) {
+    Toast.show('Profile updated successfully!', 'success');
+    cancelEdit(); loadProfile();
+  } else {
+    setHTML('#alertBox', `<div class="alert alert-danger">${data?.message || 'Update failed.'}</div>`);
+  }
+}
+
+async function addFamilyMember() {
+  const btn = $('#saveFamilyBtn');
+  btn.innerHTML = '<span class="loader"></span>';
+  btn.disabled = true;
+
+  const data = await api.post('/auth/family-member', {
+    name:        $('#fm_name').value.trim(),
+    relation:    $('#fm_relation').value,
+    gender:      $('#fm_gender').value,
+    dob:         $('#fm_dob').value || null,
+    blood_group: $('#fm_blood').value || null
+  });
+
+  btn.innerHTML = 'Add Member'; btn.disabled = false;
+
+  if (data?.success) {
+    Toast.show('Family member added!', 'success');
+    closeModal('addFamilyModal');
+    ['fm_name','fm_relation','fm_gender','fm_dob','fm_blood'].forEach(id => { if($('#'+id)) $('#'+id).value=''; });
+    loadProfile();
+  } else {
+    Toast.show(data?.message || 'Error adding member.', 'error');
+  }
+}
+
+loadProfile();
+</script>
+</body>
+</html>

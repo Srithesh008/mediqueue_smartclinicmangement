@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Patient Dashboard — SmartCare</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+  <style>
+    .appt-card { background:var(--surface); border-radius:var(--radius-lg); border:1px solid var(--border); padding:20px; margin-bottom:14px; display:grid; grid-template-columns:auto 1fr auto; gap:16px; align-items:center; transition:var(--transition); }
+    .appt-card:hover { box-shadow:var(--shadow); border-color:var(--primary-light); }
+    .appt-date-block { background:var(--bg); border-radius:12px; padding:10px 14px; text-align:center; min-width:62px; }
+    .appt-day { font-size:1.5rem; font-family:var(--font-display); font-weight:800; color:var(--primary); line-height:1; }
+    .appt-month { font-size:.75rem; color:var(--text-muted); text-transform:uppercase; font-weight:600; letter-spacing:.04em; }
+    .appt-actions { display:flex; gap:8px; flex-wrap:wrap; }
+    .queue-live { background:linear-gradient(135deg,var(--primary),#1a6eaa); color:#fff; border-radius:var(--radius-xl); padding:24px; text-align:center; }
+    .queue-big-num { font-size:4rem; font-family:var(--font-display); font-weight:800; line-height:1; }
+    .notif-item { display:flex; gap:12px; padding:14px 0; border-bottom:1px solid var(--border); }
+    .notif-item:last-child { border-bottom:none; }
+    .notif-dot { width:10px; height:10px; border-radius:50%; background:var(--primary); flex-shrink:0; margin-top:5px; }
+    .notif-dot.unread { background:var(--secondary); }
+    .section-title { font-size:1.0625rem; font-weight:700; margin-bottom:16px; display:flex; align-items:center; justify-content:space-between; }
+    @media (max-width:600px) { .appt-card { grid-template-columns:1fr; } .appt-actions { justify-content:flex-start; } }
+  </style>
+</head>
+<body>
+
+<!-- Navbar -->
+<nav class="navbar">
+  <div class="container nav-inner">
+    <a href="/" class="nav-brand">
+      <svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#2E86C1"/><path d="M20 10v20M10 20h20" stroke="white" stroke-width="4" stroke-linecap="round"/></svg>
+      Smart<span>Care</span>
+    </a>
+    <div class="nav-links">
+      <a href="/patient-dashboard.html" class="active">Dashboard</a>
+      <a href="/book-appointment.html">Book Appointment</a>
+      <a href="/profile.html">Profile</a>
+    </div>
+    <div class="nav-actions">
+      <button class="btn btn-ghost btn-sm" id="notifBtn" title="Notifications">🔔 <span id="notifCount" class="hidden" style="background:var(--danger);color:#fff;border-radius:50%;width:18px;height:18px;font-size:.7rem;display:inline-flex;align-items:center;justify-content:center"></span></button>
+      <div style="position:relative">
+        <div class="nav-avatar" id="navAvatar" title="Account"></div>
+        <div class="card hidden" id="navUserMenu" style="position:absolute;right:0;top:48px;width:200px;padding:8px;z-index:200">
+          <p style="padding:8px 12px;font-weight:600;font-size:.875rem" id="navUserName"></p>
+          <hr style="border:none;border-top:1px solid var(--border);margin:4px 0">
+          <a href="/profile.html" style="display:block;padding:8px 12px;border-radius:8px;font-size:.875rem;color:var(--text-secondary)" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''">👤 My Profile</a>
+          <a href="/book-appointment.html" style="display:block;padding:8px 12px;border-radius:8px;font-size:.875rem;color:var(--text-secondary)" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''">📅 Book Appointment</a>
+          <button id="logoutBtn" class="btn-ghost btn w-100" style="justify-content:flex-start;padding:8px 12px;border-radius:8px;font-size:.875rem">🚪 Logout</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<div class="dashboard-layout">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Patient Menu</div>
+      <div class="sidebar-link active" onclick="showSection('overview')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        Overview
+      </div>
+      <div class="sidebar-link" onclick="showSection('appointments')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        My Appointments
+      </div>
+      <div class="sidebar-link" onclick="showSection('queue')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        Live Queue
+      </div>
+      <div class="sidebar-link" onclick="showSection('notifications')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        Notifications
+      </div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Quick Actions</div>
+      <a href="/book-appointment.html" class="btn btn-primary w-100" style="margin-bottom:8px">📅 Book Appointment</a>
+      <a href="/profile.html" class="btn btn-outline w-100">👤 Edit Profile</a>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main-content">
+
+    <!-- Welcome Banner -->
+    <div style="background:linear-gradient(135deg,var(--primary),#1a6eaa);color:#fff;border-radius:var(--radius-xl);padding:24px 28px;margin-bottom:28px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px">
+      <div>
+        <h2 style="margin-bottom:6px">Good day, <span id="welcomeName">Patient</span>! 👋</h2>
+        <p style="opacity:.88;font-size:.9375rem" id="welcomeSub">Manage your appointments and track your queue in real-time.</p>
+      </div>
+      <a href="/book-appointment.html" class="btn" style="background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.3);backdrop-filter:blur(8px)">
+        + New Appointment
+      </a>
+    </div>
+
+    <!-- Overview Section -->
+    <div id="section-overview">
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-icon blue">📅</div>
+          <div><div class="stat-value" id="totalAppts">—</div><div class="stat-label">Total Appointments</div></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon green">✅</div>
+          <div><div class="stat-value" id="completedAppts">—</div><div class="stat-label">Completed</div></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon orange">⏳</div>
+          <div><div class="stat-value" id="upcomingAppts">—</div><div class="stat-label">Upcoming</div></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon red">❌</div>
+          <div><div class="stat-value" id="cancelledAppts">—</div><div class="stat-label">Cancelled</div></div>
+        </div>
+      </div>
+
+      <!-- Upcoming appointments preview -->
+      <div class="card">
+        <div class="card-header">
+          <h3>Upcoming Appointments</h3>
+          <button class="btn btn-ghost btn-sm" onclick="showSection('appointments')">View All →</button>
+        </div>
+        <div class="card-body" id="upcomingList">
+          <div class="page-loader"><span class="loader loader-dark"></span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Appointments Section -->
+    <div id="section-appointments" class="hidden">
+      <div class="section-title">
+        My Appointments
+        <div style="display:flex;gap:8px">
+          <select class="form-control" id="apptFilter" style="width:auto;padding:6px 12px;font-size:.875rem" onchange="filterAppointments()">
+            <option value="">All Status</option>
+            <option value="scheduled">Scheduled</option>
+            <option value="waiting">Waiting</option>
+            <option value="in_consultation">In Consultation</option>
+            <option value="completed">Completed</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </div>
+      </div>
+      <div id="allAppointmentsList">
+        <div class="page-loader"><span class="loader loader-dark"></span></div>
+      </div>
+    </div>
+
+    <!-- Live Queue Section -->
+    <div id="section-queue" class="hidden">
+      <div class="section-title">Live Queue Status</div>
+      <div id="queuePanel">
+        <div class="alert alert-info">Select an active appointment to track live queue position.</div>
+        <div id="activeQueueSelect"></div>
+      </div>
+    </div>
+
+    <!-- Notifications Section -->
+    <div id="section-notifications" class="hidden">
+      <div class="section-title">Notifications</div>
+      <div class="card">
+        <div class="card-body" id="notificationsList">
+          <div class="page-loader"><span class="loader loader-dark"></span></div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Cancel Modal -->
+<div class="modal-overlay" id="cancelModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Cancel Appointment</h3>
+      <button class="modal-close" onclick="closeModal('cancelModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p>Are you sure you want to cancel this appointment? This action cannot be undone.</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('cancelModal')">Keep Appointment</button>
+      <button class="btn btn-danger" id="confirmCancelBtn">Yes, Cancel It</button>
+    </div>
+  </div>
+</div>
+
+<!-- Chatbot -->
+<button class="chatbot-toggle" id="chatbotToggle">💬</button>
+<div class="chatbot-window" id="chatbotWindow">
+  <div class="chatbot-header">
+    <div class="chatbot-avatar">🤖</div>
+    <div><div style="font-weight:700;font-size:.9375rem">SmartCare Assistant</div><div style="font-size:.75rem;opacity:.8">Always here to help</div></div>
+    <button onclick="document.getElementById('chatbotWindow').classList.remove('open')" class="modal-close" style="color:rgba(255,255,255,.8)">✕</button>
+  </div>
+  <div class="chatbot-messages" id="chatMessages"></div>
+  <div class="chatbot-input"><input type="text" id="chatInput" placeholder="Ask me anything..." /><button id="chatSend">➤</button></div>
+</div>
+
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script src="/js/utils.js"></script>
+<script>
+if (!Auth.requireAuth('patient')) throw new Error('Unauthorized');
+
+const user = Auth.getUser();
+let allAppointments = [];
+let cancelTargetId = null;
+let socket = null;
+
+// Init UI
+setText('#welcomeName', user.name?.split(' ')[0] || 'Patient');
+
+// Socket.io
+function initSocket() {
+  socket = io();
+  socket.on('your_turn', data => {
+    Toast.show(data.message, 'success', '🔔 Your Turn!');
+    loadAppointments();
+  });
+  socket.on('wait_update', data => {
+    updateLiveQueue(data);
+  });
+}
+
+// Section navigation
+function showSection(name) {
+  $$('[id^="section-"]').forEach(el => el.classList.add('hidden'));
+  $(`#section-${name}`).classList.remove('hidden');
+  $$('.sidebar-link').forEach(el => el.classList.remove('active'));
+  event?.target?.closest('.sidebar-link')?.classList.add('active');
+
+  if (name === 'notifications') loadNotifications();
+  if (name === 'queue') loadQueueSection();
+}
+
+// Load all appointments
+async function loadAppointments() {
+  const data = await api.get('/appointments/my');
+  if (!data?.success) return;
+  allAppointments = data.appointments;
+  renderStats();
+  renderUpcoming();
+  renderAllAppointments();
+}
+
+function renderStats() {
+  setText('#totalAppts', allAppointments.length);
+  setText('#completedAppts', allAppointments.filter(a => a.status === 'completed').length);
+  setText('#upcomingAppts', allAppointments.filter(a => ['scheduled','waiting','in_consultation'].includes(a.status)).length);
+  setText('#cancelledAppts', allAppointments.filter(a => a.status === 'cancelled').length);
+}
+
+function renderUpcoming() {
+  const upcoming = allAppointments.filter(a => ['scheduled','waiting','in_consultation'].includes(a.status)).slice(0, 3);
+  if (!upcoming.length) {
+    setHTML('#upcomingList', `<div class="text-center" style="padding:32px 0;color:var(--text-muted)">
+      <div style="font-size:2.5rem;margin-bottom:12px">📅</div>
+      <p>No upcoming appointments</p>
+      <a href="/book-appointment.html" class="btn btn-primary btn-sm mt-2">Book Now</a>
+    </div>`);
+    return;
+  }
+  setHTML('#upcomingList', upcoming.map(apptCard).join(''));
+}
+
+function filterAppointments() {
+  const filter = $('#apptFilter').value;
+  const filtered = filter ? allAppointments.filter(a => a.status === filter) : allAppointments;
+  setHTML('#allAppointmentsList', filtered.length ? filtered.map(apptCard).join('') :
+    '<div class="alert alert-info">No appointments found for selected filter.</div>');
+}
+
+function renderAllAppointments() {
+  setHTML('#allAppointmentsList', allAppointments.length ? allAppointments.map(apptCard).join('') :
+    `<div class="text-center" style="padding:40px;color:var(--text-muted)">
+      <div style="font-size:3rem;margin-bottom:16px">📭</div>
+      <h4>No appointments yet</h4>
+      <a href="/book-appointment.html" class="btn btn-primary mt-2">Book Your First Appointment</a>
+    </div>`);
+}
+
+function apptCard(a) {
+  const d = new Date(a.appointment_date);
+  const day = d.getDate();
+  const month = d.toLocaleString('en-IN', { month: 'short' });
+  const canCancel = ['scheduled','waiting'].includes(a.status);
+  return `
+    <div class="appt-card animate-in">
+      <div class="appt-date-block">
+        <div class="appt-day">${day}</div>
+        <div class="appt-month">${month}</div>
+      </div>
+      <div>
+        <div style="font-weight:700;font-size:.9375rem">${a.doctor_name} ${a.specialization ? '· '+a.specialization : ''}</div>
+        <div style="font-size:.8125rem;color:var(--text-muted);margin-top:3px">
+          🕐 ${formatTime(a.time_slot)} &nbsp;·&nbsp; 🏥 ${a.room_number || 'TBD'} &nbsp;·&nbsp; 🎫 Token #${a.token_number}
+          ${a.family_member_name ? `&nbsp;·&nbsp; 👤 ${a.family_member_name}` : ''}
+        </div>
+        <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+          ${statusBadge(a.status)}
+          ${a.priority !== 'normal' ? priorityBadge(a.priority) : ''}
+          ${['waiting','scheduled'].includes(a.status) ? `<span style="font-size:.8125rem;color:var(--text-muted)">⏳ Est. wait: ${waitDisplay(a.estimated_wait)}</span>` : ''}
+        </div>
+      </div>
+      <div class="appt-actions">
+        ${['waiting','in_consultation','scheduled'].includes(a.status) ?
+          `<button class="btn btn-primary btn-sm" onclick="trackQueue(${a.id})">📍 Track Queue</button>` : ''}
+        ${canCancel ? `<button class="btn btn-danger btn-sm" onclick="openCancelModal(${a.id})">✕ Cancel</button>` : ''}
+      </div>
+    </div>`;
+}
+
+// Queue tracking
+function trackQueue(apptId) {
+  showSection('queue');
+  loadLiveQueue(apptId);
+}
+
+async function loadQueueSection() {
+  const active = allAppointments.filter(a => ['scheduled','waiting','in_consultation'].includes(a.status));
+  if (!active.length) {
+    setHTML('#activeQueueSelect', '<div class="alert alert-info">No active appointments to track.</div>');
+    return;
+  }
+  setHTML('#activeQueueSelect', `
+    <div class="form-group" style="max-width:320px">
+      <label class="form-label">Select Appointment to Track</label>
+      <select class="form-control" id="queueApptSelect" onchange="loadLiveQueue(this.value)">
+        <option value="">Choose...</option>
+        ${active.map(a => `<option value="${a.id}">Token #${a.token_number} — ${a.doctor_name} (${formatDate(a.appointment_date)})</option>`).join('')}
+      </select>
+    </div>
+    <div id="liveQueueDisplay"></div>
+  `);
+}
+
+async function loadLiveQueue(apptId) {
+  if (!apptId) return;
+  const el = $('#liveQueueDisplay');
+  if (el) el.innerHTML = '<div class="page-loader"><span class="loader loader-dark"></span></div>';
+
+  const data = await api.get(`/appointments/queue/${apptId}/position`);
+  if (!data?.success) { if(el) el.innerHTML = '<div class="alert alert-danger">Failed to load queue data.</div>'; return; }
+
+  const q = data;
+  if (socket) socket.emit('join_appointment', apptId);
+
+  const statusMsg = q.status === 'in_consultation' ? '🟢 You are currently being seen!' :
+    q.status === 'completed' ? '✅ Consultation complete' :
+    q.status === 'waiting' ? `⏳ ${q.patients_ahead} patient(s) ahead of you` : '';
+
+  if (el) el.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:16px">
+      <div class="queue-live">
+        <div style="font-size:.875rem;opacity:.8;margin-bottom:8px">YOUR POSITION</div>
+        <div class="queue-big-num">#${q.queue_position}</div>
+        <div class="token-badge">Token #${q.token_number}</div>
+      </div>
+      <div class="queue-live" style="background:linear-gradient(135deg,var(--secondary-dark),#1a8a50)">
+        <div style="font-size:.875rem;opacity:.8;margin-bottom:8px">ESTIMATED WAIT</div>
+        <div class="queue-big-num" style="font-size:2.5rem">${waitDisplay(q.live_wait_min)}</div>
+        <div style="font-size:.875rem;opacity:.8;margin-top:8px">${statusMsg}</div>
+      </div>
+    </div>
+    <div class="alert alert-info mt-2">🔄 This page updates in real-time via Socket.io. You'll be notified when it's your turn.</div>`;
+}
+
+function updateLiveQueue(data) {
+  const big = $('.queue-big-num');
+  if (big) big.textContent = '#' + data.position;
+}
+
+// Notifications
+async function loadNotifications() {
+  // Using appointment data to simulate notifications
+  const notifs = allAppointments.slice(0, 8).map(a => ({
+    title:   a.status === 'completed' ? 'Consultation Completed' : 'Appointment ' + a.status,
+    message: `${a.doctor_name} on ${formatDate(a.appointment_date)} at ${formatTime(a.time_slot)}`,
+    is_read: a.status === 'completed',
+    type:    'appointment'
+  }));
+
+  const icons = { appointment: '📅', queue: '🔔', system: '⚙️', emergency: '🚨' };
+  setHTML('#notificationsList', notifs.length ? notifs.map(n => `
+    <div class="notif-item">
+      <div class="notif-dot ${n.is_read ? '' : 'unread'}"></div>
+      <div>
+        <div style="font-weight:${n.is_read ? '400' : '600'};font-size:.9375rem">${icons[n.type]||'🔔'} ${n.title}</div>
+        <div style="font-size:.8125rem;color:var(--text-muted);margin-top:2px">${n.message}</div>
+      </div>
+    </div>`).join('') : '<p class="text-muted text-center" style="padding:24px">No notifications</p>');
+}
+
+// Cancel
+function openCancelModal(id) {
+  cancelTargetId = id;
+  openModal('cancelModal');
+}
+
+$('#confirmCancelBtn').addEventListener('click', async () => {
+  if (!cancelTargetId) return;
+  const data = await api.put(`/appointments/${cancelTargetId}/cancel`, {});
+  closeModal('cancelModal');
+  if (data?.success) { Toast.show('Appointment cancelled.', 'success'); loadAppointments(); }
+  else Toast.show(data?.message || 'Failed to cancel.', 'error');
+  cancelTargetId = null;
+});
+
+// Init
+initSocket();
+loadAppointments();
+</script>
+</body>
+</html>

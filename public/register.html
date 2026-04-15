@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Register — SmartCare</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+  <style>
+    body {
+      background: linear-gradient(135deg, #1A5276 0%, #2E86C1 60%, #1a9e6e 100%);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .auth-wrapper {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 20px;
+    }
+
+    .auth-card {
+      background: var(--surface);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-lg);
+      width: 100%;
+      max-width: 520px;
+    }
+
+    .auth-header {
+      padding: 32px 36px 20px;
+      text-align: center;
+    }
+
+    .auth-body {
+      padding: 0 36px 36px;
+    }
+
+    .auth-icon {
+      width: 64px;
+      height: 64px;
+      border-radius: 18px;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.75rem;
+      margin: 0 auto 20px;
+    }
+
+    .step-indicator {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 28px;
+    }
+
+    .step-dot {
+      flex: 1;
+      height: 4px;
+      border-radius: 2px;
+      background: var(--border);
+      transition: var(--transition);
+    }
+
+    .step-dot.active {
+      background: var(--primary);
+    }
+
+    .step-dot.done {
+      background: var(--secondary);
+    }
+
+    .strength-bar {
+      height: 4px;
+      border-radius: 2px;
+      background: var(--border);
+      margin-top: 8px;
+      overflow: hidden;
+    }
+
+    .strength-fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: all .3s;
+    }
+
+    .field-error {
+      color: #e74c3c;
+      font-size: .8125rem;
+      margin-top: 4px;
+      display: none;
+    }
+
+    .field-error.visible {
+      display: block;
+    }
+
+    .form-control.input-error {
+      border-color: #e74c3c;
+      box-shadow: 0 0 0 2px rgba(231, 76, 60, .15);
+    }
+
+    @media (max-width: 480px) {
+
+      .auth-header,
+      .auth-body {
+        padding-left: 20px;
+        padding-right: 20px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <nav class="navbar">
+    <div class="container nav-inner">
+      <a href="/" class="nav-brand">
+        <svg viewBox="0 0 40 40" fill="none">
+          <rect width="40" height="40" rx="10" fill="#2E86C1" />
+          <path d="M20 10v20M10 20h20" stroke="white" stroke-width="4" stroke-linecap="round" />
+        </svg>
+        Smart<span>Care</span>
+      </a>
+      <a href="/login.html" class="btn btn-ghost btn-sm">Already have an account? Login →</a>
+    </div>
+  </nav>
+
+  <div class="auth-wrapper">
+    <div class="auth-card animate-in">
+      <div class="auth-header">
+        <div class="auth-icon">✨</div>
+        <h2>Create Your Account</h2>
+        <p style="color:var(--text-muted);font-size:.9375rem;margin-top:6px">Join SmartCare — Book smarter, wait less
+        </p>
+      </div>
+      <div class="auth-body">
+
+        <!-- Step Indicator -->
+        <div class="step-indicator">
+          <div class="step-dot active" id="dot1"></div>
+          <div class="step-dot" id="dot2"></div>
+        </div>
+
+        <div id="alertBox"></div>
+
+        <!-- Step 1: Basic Info -->
+        <div id="step1">
+          <div class="form-group">
+            <label class="form-label">Full Name *</label>
+            <input type="text" class="form-control" id="reg_name" placeholder="Arjun Kumar" required />
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Email Address *</label>
+              <input type="email" class="form-control" id="reg_email" placeholder="you@email.com" required />
+              <span class="field-error" id="regEmailError">Please enter a valid email address (e.g.,
+                name@example.com)</span>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Phone Number *</label>
+              <input type="tel" class="form-control" id="reg_phone" placeholder="9876543210" maxlength="10" required />
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Password *</label>
+            <input type="password" class="form-control" id="reg_password" placeholder="Min 8 characters" required
+              oninput="checkStrength(this.value)" />
+            <div class="strength-bar">
+              <div class="strength-fill" id="strengthFill"></div>
+            </div>
+            <p class="form-hint" id="strengthText"></p>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Confirm Password *</label>
+            <input type="password" class="form-control" id="reg_confirm" placeholder="Re-enter password" required />
+          </div>
+          <button type="button" class="btn btn-primary w-100 btn-lg" onclick="nextStep()">Continue →</button>
+        </div>
+
+        <!-- Step 2: Health Info (optional) -->
+        <div id="step2" class="hidden">
+          <p style="color:var(--text-muted);font-size:.875rem;margin-bottom:20px">Optional health details — helps
+            doctors serve you better</p>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Gender</label>
+              <select class="form-control" id="reg_gender">
+                <option value="">Select</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Date of Birth</label>
+              <input type="date" class="form-control" id="reg_dob" max="" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Blood Group</label>
+              <select class="form-control" id="reg_blood">
+                <option value="">Select</option>
+                <option>A+</option>
+                <option>A-</option>
+                <option>B+</option>
+                <option>B-</option>
+                <option>O+</option>
+                <option>O-</option>
+                <option>AB+</option>
+                <option>AB-</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">City / Address</label>
+              <input type="text" class="form-control" id="reg_address" placeholder="Bengaluru, Karnataka" />
+            </div>
+          </div>
+
+          <div style="display:flex;gap:12px;margin-top:8px">
+            <button type="button" class="btn btn-ghost flex-1" onclick="prevStep()">← Back</button>
+            <button type="button" class="btn btn-primary flex-1 btn-lg" id="submitBtn" onclick="submitRegister()">
+              Create Account 🎉
+            </button>
+          </div>
+          <p style="text-align:center;margin-top:12px;font-size:.8125rem;color:var(--text-muted)">
+            By registering you agree to our Terms & Privacy Policy
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/utils.js"></script>
+  <script>
+    if (Auth.isLoggedIn()) location.href = '/patient-dashboard.html';
+
+    // Set max date for DOB
+    $('#reg_dob').max = new Date().toISOString().split('T')[0];
+
+    function checkStrength(val) {
+      const fill = $('#strengthFill');
+      const text = $('#strengthText');
+      let score = 0;
+      if (val.length >= 8) score++;
+      if (/[A-Z]/.test(val)) score++;
+      if (/[0-9]/.test(val)) score++;
+      if (/[^A-Za-z0-9]/.test(val)) score++;
+
+      const colors = ['', '#e74c3c', '#e67e22', '#f1c40f', '#2ecc71'];
+      const labels = ['', 'Weak', 'Fair', 'Good', 'Strong'];
+      fill.style.width = `${score * 25}%`;
+      fill.style.background = colors[score];
+      text.textContent = score ? `Password strength: ${labels[score]}` : '';
+      text.style.color = colors[score];
+    }
+
+    // Email validation helper
+    function isValidEmail(email) {
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    }
+
+    // Real-time email validation on blur
+    $('#reg_email').addEventListener('blur', function () {
+      const val = this.value.trim();
+      const errEl = $('#regEmailError');
+      if (val && !isValidEmail(val)) {
+        this.classList.add('input-error');
+        errEl.classList.add('visible');
+      } else {
+        this.classList.remove('input-error');
+        errEl.classList.remove('visible');
+      }
+    });
+
+    // Clear error on input
+    $('#reg_email').addEventListener('input', function () {
+      this.classList.remove('input-error');
+      $('#regEmailError').classList.remove('visible');
+    });
+
+    function nextStep() {
+      const name = $('#reg_name').value.trim();
+      const email = $('#reg_email').value.trim();
+      const phone = $('#reg_phone').value.trim();
+      const pwd = $('#reg_password').value;
+      const conf = $('#reg_confirm').value;
+
+      if (!name || !email || !phone || !pwd) {
+        setHTML('#alertBox', '<div class="alert alert-danger">Please fill all required fields.</div>');
+        return;
+      }
+      if (!isValidEmail(email)) {
+        $('#reg_email').classList.add('input-error');
+        $('#regEmailError').classList.add('visible');
+        setHTML('#alertBox', '<div class="alert alert-danger">Please enter a valid email address (e.g., name@example.com).</div>');
+        return;
+      }
+      if (!/^[0-9]{10}$/.test(phone)) {
+        setHTML('#alertBox', '<div class="alert alert-danger">Enter a valid 10-digit phone number.</div>');
+        return;
+      }
+      if (pwd.length < 8) {
+        setHTML('#alertBox', '<div class="alert alert-danger">Password must be at least 8 characters.</div>');
+        return;
+      }
+      if (pwd !== conf) {
+        setHTML('#alertBox', '<div class="alert alert-danger">Passwords do not match.</div>');
+        return;
+      }
+
+      setHTML('#alertBox', '');
+      hide('#step1');
+      show('#step2');
+      $('#dot1').classList.replace('active', 'done');
+      $('#dot2').classList.add('active');
+    }
+
+    function prevStep() {
+      show('#step1');
+      hide('#step2');
+      $('#dot2').classList.remove('active');
+      $('#dot1').classList.replace('done', 'active');
+    }
+
+    async function submitRegister() {
+      const btn = $('#submitBtn');
+      btn.innerHTML = '<span class="loader"></span> Creating Account...';
+      btn.disabled = true;
+
+      const payload = {
+        name: $('#reg_name').value.trim(),
+        email: $('#reg_email').value.trim(),
+        phone: $('#reg_phone').value.trim(),
+        password: $('#reg_password').value,
+        gender: $('#reg_gender').value || null,
+        dob: $('#reg_dob').value || null,
+        blood_group: $('#reg_blood').value || null,
+        address: $('#reg_address').value.trim() || null,
+      };
+
+      const data = await api.post('/auth/register', payload, false);
+
+      btn.innerHTML = 'Create Account 🎉';
+      btn.disabled = false;
+
+      if (!data) return;
+      if (!data.success) {
+        setHTML('#alertBox', `<div class="alert alert-danger">❌ ${data.message}</div>`);
+        prevStep();
+        return;
+      }
+
+      Auth.setSession(data.token, data.user);
+      Toast.show('Account created! Welcome to SmartCare 🎉', 'success');
+      setTimeout(() => location.href = '/patient-dashboard.html', 1000);
+    }
+  </script>
+</body>
+
+</html>

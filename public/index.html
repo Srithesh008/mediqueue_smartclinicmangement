@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SmartCare — Clinic Queue & Appointment System</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+  <style>
+    .stats-banner {
+      background: var(--surface); border-radius: var(--radius-xl);
+      padding: 28px; display: grid;
+      grid-template-columns: repeat(4, 1fr); gap: 1px;
+      box-shadow: var(--shadow); border: 1px solid var(--border);
+      margin-top: -48px; position: relative; z-index: 10;
+    }
+    .stats-banner-item {
+      text-align: center; padding: 16px;
+      border-right: 1px solid var(--border);
+    }
+    .stats-banner-item:last-child { border-right: none; }
+    .stats-banner-value { font-family: var(--font-display); font-size: 2rem; font-weight: 800; color: var(--primary); }
+    .stats-banner-label { font-size: 0.8125rem; color: var(--text-muted); margin-top: 4px; }
+    .how-it-works { background: var(--surface); }
+    .steps-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0; }
+    .step-card { text-align: center; padding: 40px 28px; position: relative; }
+    .step-card:not(:last-child)::after {
+      content: '→'; position: absolute; right: -12px; top: 50%;
+      transform: translateY(-50%); font-size: 1.5rem;
+      color: var(--primary-light); font-weight: 700;
+    }
+    .step-num {
+      width: 56px; height: 56px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      color: #fff; display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-display); font-weight: 800; font-size: 1.25rem;
+      margin: 0 auto 18px;
+    }
+    .testimonial-card {
+      background: var(--surface); border-radius: var(--radius-xl);
+      padding: 28px; border: 1px solid var(--border); box-shadow: var(--shadow-sm);
+    }
+    .testimonial-avatar {
+      width: 44px; height: 44px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-weight: 700; font-size: 1rem;
+    }
+    .rating { color: #f59e0b; font-size: 0.875rem; }
+    section { padding: 72px 0; }
+    .section-header { text-align: center; margin-bottom: 52px; }
+    .section-tag {
+      display: inline-block; background: rgba(46,134,193,.1);
+      color: var(--primary); font-size: 0.8125rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .06em;
+      padding: 6px 14px; border-radius: 20px; margin-bottom: 14px;
+    }
+    .section-header h2 { margin-bottom: 14px; }
+    .section-header p { color: var(--text-muted); max-width: 520px; margin: 0 auto; font-size: 1.0625rem; }
+    @media (max-width: 768px) {
+      .stats-banner { grid-template-columns: 1fr 1fr; margin-top: -24px; }
+      .step-card::after { display: none; }
+    }
+    @media (max-width: 480px) { .stats-banner { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+
+<!-- ── Navbar ─────────────────────────────────────────────── -->
+<nav class="navbar">
+  <div class="container nav-inner">
+    <a href="/" class="nav-brand">
+      <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="40" height="40" rx="10" fill="#2E86C1"/>
+        <path d="M20 10v20M10 20h20" stroke="white" stroke-width="4" stroke-linecap="round"/>
+      </svg>
+      Smart<span>Care</span>
+    </a>
+    <div class="nav-links">
+      <a href="/" class="active">Home</a>
+      <a href="#features">Features</a>
+      <a href="#how-it-works">How It Works</a>
+      <a href="/patient-dashboard.html" class="role-link hidden" data-role="patient">Dashboard</a>
+      <a href="/doctor-dashboard.html" class="role-link hidden" data-role="doctor">Doctor Panel</a>
+      <a href="/admin-panel.html" class="role-link hidden" data-role="admin">Admin</a>
+    </div>
+    <div class="nav-actions">
+      <div style="position:relative">
+        <div class="nav-avatar hidden" id="navAvatar" title="Account"></div>
+        <div class="card hidden" id="navUserMenu" style="position:absolute;right:0;top:48px;width:200px;padding:8px;z-index:200">
+          <p style="padding:8px 12px;font-weight:600;font-size:.875rem" id="navUserName"></p>
+          <hr style="border:none;border-top:1px solid var(--border);margin:4px 0">
+          <a href="/profile.html" style="display:flex;padding:8px 12px;border-radius:8px;font-size:.875rem;color:var(--text-secondary)" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''">👤 Profile</a>
+          <button id="logoutBtn" class="btn-ghost btn w-100" style="justify-content:flex-start;padding:8px 12px;border-radius:8px;font-size:.875rem">🚪 Logout</button>
+        </div>
+      </div>
+      <a href="/login.html" class="btn btn-primary btn-sm" id="navAuthBtn">Login / Register</a>
+      <div class="hamburger" onclick="document.querySelector('.nav-links').classList.toggle('d-flex')">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<!-- ── Hero ──────────────────────────────────────────────── -->
+<section class="hero">
+  <div class="container hero-content">
+    <div class="hero-badge">🏥 India's Smart Clinic Management Platform</div>
+    <h1>No More Long Waits.<br>Smart Queues. Real-Time Updates.</h1>
+    <p>Transform your clinic with intelligent appointment scheduling, live queue tracking, and predictive analytics. Built for Indian healthcare.</p>
+    <div class="hero-actions">
+      <a href="/register.html" class="btn btn-lg" style="background:#fff;color:var(--primary);font-weight:700">Get Started Free</a>
+      <a href="#features" class="btn btn-lg btn-outline" style="border-color:rgba(255,255,255,.5);color:#fff">Explore Features</a>
+    </div>
+  </div>
+</section>
+
+<!-- ── Stats Banner ───────────────────────────────────────── -->
+<div class="container">
+  <div class="stats-banner">
+    <div class="stats-banner-item">
+      <div class="stats-banner-value">70%</div>
+      <div class="stats-banner-label">Reduction in Wait Time</div>
+    </div>
+    <div class="stats-banner-item">
+      <div class="stats-banner-value">3x</div>
+      <div class="stats-banner-label">Faster Appointment Booking</div>
+    </div>
+    <div class="stats-banner-item">
+      <div class="stats-banner-value">100%</div>
+      <div class="stats-banner-label">Real-Time Queue Visibility</div>
+    </div>
+    <div class="stats-banner-item">
+      <div class="stats-banner-value">24/7</div>
+      <div class="stats-banner-label">Online Access</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Features ───────────────────────────────────────────── -->
+<section id="features">
+  <div class="container">
+    <div class="section-header">
+      <span class="section-tag">Core Features</span>
+      <h2>Everything Your Clinic Needs</h2>
+      <p>Comprehensive tools for patients, doctors, and clinic administrators.</p>
+    </div>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(46,134,193,.1);color:var(--primary)">📅</div>
+        <h3>Smart Appointment Booking</h3>
+        <p>Book appointments in seconds. Choose your doctor, date, and available time slot. Automatic conflict prevention.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(88,214,141,.1);color:var(--secondary-dark)">🔄</div>
+        <h3>Real-Time Queue Tracking</h3>
+        <p>Know your exact position in the queue. Get live waiting time estimates that update automatically via Socket.io.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(243,156,18,.1);color:var(--warning)">⚡</div>
+        <h3>Auto Slot Optimization</h3>
+        <p>Slots shift automatically when consultations run long. The system adapts in real-time to prevent cascading delays.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(231,76,60,.1);color:var(--danger)">🚨</div>
+        <h3>Emergency Mode</h3>
+        <p>Doctors can instantly elevate emergency patients to top of queue. All other patients get automatic wait-time updates.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(142,68,173,.1);color:#8E44AD">👨‍👩‍👧</div>
+        <h3>Family Booking System</h3>
+        <p>Manage appointments for all family members from one account. Add dependents and book on their behalf.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(23,162,184,.1);color:#0c7ab5">📊</div>
+        <h3>Analytics Dashboard</h3>
+        <p>Detailed insights on patient flow, consultation durations, peak hours, and doctor performance metrics.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(46,134,193,.1);color:var(--primary)">🤖</div>
+        <h3>AI Chatbot Assistant</h3>
+        <p>24/7 chatbot answers FAQs, guides bookings, and provides queue information instantly.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(88,214,141,.1);color:var(--secondary-dark)">🔔</div>
+        <h3>Smart Notifications</h3>
+        <p>Real-time notifications when your turn approaches, appointments are confirmed, or queue position changes.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(243,156,18,.1);color:var(--warning)">🛡️</div>
+        <h3>Role-Based Access</h3>
+        <p>Separate secure panels for patients, doctors, and admins. JWT authentication with proper role guards.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── How It Works ───────────────────────────────────────── -->
+<section id="how-it-works" class="how-it-works">
+  <div class="container">
+    <div class="section-header">
+      <span class="section-tag">Process</span>
+      <h2>How It Works</h2>
+      <p>A seamless experience from booking to consultation completion.</p>
+    </div>
+    <div class="steps-grid">
+      <div class="step-card">
+        <div class="step-num">1</div>
+        <h4>Register & Login</h4>
+        <p style="color:var(--text-muted);font-size:.875rem">Create your account or login. Add family members if needed.</p>
+      </div>
+      <div class="step-card">
+        <div class="step-num">2</div>
+        <h4>Book Appointment</h4>
+        <p style="color:var(--text-muted);font-size:.875rem">Choose doctor, date & available slot. Get instant confirmation with token number.</p>
+      </div>
+      <div class="step-card">
+        <div class="step-num">3</div>
+        <h4>Track Queue Live</h4>
+        <p style="color:var(--text-muted);font-size:.875rem">Monitor your position and estimated wait time in real-time from anywhere.</p>
+      </div>
+      <div class="step-card">
+        <div class="step-num">4</div>
+        <h4>Get Notified</h4>
+        <p style="color:var(--text-muted);font-size:.875rem">Receive instant notification when your turn arrives. Arrive just in time!</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Testimonials ───────────────────────────────────────── -->
+<section>
+  <div class="container">
+    <div class="section-header">
+      <span class="section-tag">Reviews</span>
+      <h2>Trusted by Patients & Clinics</h2>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px">
+      <div class="testimonial-card">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+          <div class="testimonial-avatar">A</div>
+          <div>
+            <div style="font-weight:700;font-size:.9375rem">Arjun Sharma</div>
+            <div style="font-size:.8125rem;color:var(--text-muted)">Patient, Bengaluru</div>
+          </div>
+        </div>
+        <div class="rating">★★★★★</div>
+        <p style="margin-top:10px;font-size:.875rem;color:var(--text-secondary)">
+          "No more waiting 2 hours at the clinic! I can track my position from home and arrive exactly on time. This is the future of healthcare."
+        </p>
+      </div>
+      <div class="testimonial-card">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+          <div class="testimonial-avatar" style="background:linear-gradient(135deg,#8E44AD,#2980B9)">P</div>
+          <div>
+            <div style="font-weight:700;font-size:.9375rem">Dr. Priya Mehta</div>
+            <div style="font-size:.8125rem;color:var(--text-muted)">Physician, Mysuru</div>
+          </div>
+        </div>
+        <div class="rating">★★★★★</div>
+        <p style="margin-top:10px;font-size:.875rem;color:var(--text-secondary)">
+          "The emergency mode feature is incredible. I can prioritize critical patients instantly while keeping everyone else informed. My clinic efficiency improved massively."
+        </p>
+      </div>
+      <div class="testimonial-card">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+          <div class="testimonial-avatar" style="background:linear-gradient(135deg,#27AE60,#2ECC71)">R</div>
+          <div>
+            <div style="font-weight:700;font-size:.9375rem">Rahul Nair</div>
+            <div style="font-size:.8125rem;color:var(--text-muted)">Clinic Administrator, Kochi</div>
+          </div>
+        </div>
+        <div class="rating">★★★★★</div>
+        <p style="margin-top:10px;font-size:.875rem;color:var(--text-secondary)">
+          "The analytics dashboard gave us insights we never had before. We optimized our slot durations and reduced patient complaints by 80%."
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── CTA ────────────────────────────────────────────────── -->
+<section style="background:linear-gradient(135deg,#1A5276,#2E86C1);color:#fff;text-align:center">
+  <div class="container">
+    <h2 style="margin-bottom:16px">Ready to Transform Your Clinic?</h2>
+    <p style="opacity:.88;margin-bottom:32px;font-size:1.0625rem">Join hundreds of clinics across India that have eliminated waiting room chaos.</p>
+    <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap">
+      <a href="/register.html" class="btn btn-lg" style="background:#fff;color:var(--primary);font-weight:700">Start for Free</a>
+      <a href="/login.html" class="btn btn-lg btn-outline" style="border-color:rgba(255,255,255,.5);color:#fff">Login to Continue</a>
+    </div>
+  </div>
+</section>
+
+<!-- ── Footer ─────────────────────────────────────────────── -->
+<footer style="background:var(--text);color:rgba(255,255,255,.7);padding:40px 0">
+  <div class="container" style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:40px">
+    <div>
+      <div class="nav-brand" style="color:#fff;margin-bottom:14px">
+        <svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#2E86C1"/><path d="M20 10v20M10 20h20" stroke="white" stroke-width="4" stroke-linecap="round"/></svg>
+        Smart<span style="color:var(--secondary)">Care</span>
+      </div>
+      <p style="font-size:.875rem;line-height:1.7">Digitizing Indian clinics with smart queue management and real-time appointment optimization.</p>
+    </div>
+    <div>
+      <div style="font-weight:700;color:#fff;margin-bottom:14px">Quick Links</div>
+      <div style="display:flex;flex-direction:column;gap:8px;font-size:.875rem">
+        <a href="/login.html" style="color:rgba(255,255,255,.6)" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='rgba(255,255,255,.6)'">Login</a>
+        <a href="/register.html" style="color:rgba(255,255,255,.6)" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='rgba(255,255,255,.6)'">Register</a>
+        <a href="#features" style="color:rgba(255,255,255,.6)" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='rgba(255,255,255,.6)'">Features</a>
+      </div>
+    </div>
+    <div>
+      <div style="font-weight:700;color:#fff;margin-bottom:14px">Contact</div>
+      <div style="font-size:.875rem;line-height:2">
+        📧 support@smartcare.in<br>
+        📞 +91 80 4000 0000<br>
+        📍 Bengaluru, Karnataka
+      </div>
+    </div>
+  </div>
+  <div class="container" style="border-top:1px solid rgba(255,255,255,.1);margin-top:32px;padding-top:24px;text-align:center;font-size:.8125rem">
+    © 2024 SmartCare Clinic Queue System. Built for Indian Healthcare. 🇮🇳
+  </div>
+</footer>
+
+<!-- ── Chatbot ─────────────────────────────────────────────── -->
+<button class="chatbot-toggle" id="chatbotToggle" title="Chat with us">💬</button>
+<div class="chatbot-window" id="chatbotWindow">
+  <div class="chatbot-header">
+    <div class="chatbot-avatar">🤖</div>
+    <div>
+      <div style="font-weight:700;font-size:.9375rem">SmartCare Assistant</div>
+      <div style="font-size:.75rem;opacity:.8">Always here to help</div>
+    </div>
+    <button onclick="document.getElementById('chatbotWindow').classList.remove('open')" class="modal-close" style="color:rgba(255,255,255,.8)">✕</button>
+  </div>
+  <div class="chatbot-messages" id="chatMessages"></div>
+  <div class="chatbot-input">
+    <input type="text" id="chatInput" placeholder="Type a message..." />
+    <button id="chatSend">➤</button>
+  </div>
+</div>
+
+<script src="/js/utils.js"></script>
+</body>
+</html>
