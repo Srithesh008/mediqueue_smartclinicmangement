@@ -18,6 +18,7 @@
     .queue-table tr.emergency td { background:rgba(231,76,60,.04); }
     .queue-table tr.completed td { opacity:.5; }
     .chart-wrap { height:220px; }
+    @keyframes pulse { 0%,100% { transform:scale(1); } 50% { transform:scale(1.04); } }
   </style>
 </head>
 <body>
@@ -53,6 +54,8 @@
       <div style="font-size:.8125rem;opacity:.85" id="sideDocSpec"></div>
       <div style="font-size:.8125rem;opacity:.75;margin-top:4px" id="sideDocRoom"></div>
     </div>
+    <!-- Status Banner -->
+    <div id="sideStatusBanner" class="hidden" style="padding:10px 14px;border-radius:var(--radius);margin-bottom:16px;font-size:.8125rem;font-weight:700;text-align:center;"></div>
     <div class="sidebar-section">
       <div class="sidebar-label">Doctor Panel</div>
       <div class="sidebar-link active" onclick="showSection('queue')">
@@ -93,8 +96,35 @@
           <button class="btn btn-success" onclick="callNext()" id="callNextBtn">
             📢 Call Next Patient
           </button>
+          <button class="btn" id="breakBtn" onclick="toggleBreakMode()" style="background:#F39C12;color:#fff;">
+            ☕ Start Break
+          </button>
+          <button class="btn btn-outline" onclick="openModal('leaveModal')">
+            📅 Mark Leave
+          </button>
           <button class="btn btn-outline" onclick="loadQueue()">🔄 Refresh</button>
         </div>
+      </div>
+
+      <!-- Call Banner -->
+      <div id="callBanner" class="hidden" style="background:linear-gradient(135deg,var(--secondary-dark),#1a8a50);color:#fff;border-radius:var(--radius);padding:14px 20px;margin-bottom:16px;display:flex;align-items:center;gap:12px;font-weight:600;animation:fadeIn .4s ease;">
+        <span style="font-size:1.25rem">📢</span>
+        <span id="callBannerText"></span>
+      </div>
+
+      <!-- Break Info Banner -->
+      <div id="breakInfoBanner" class="hidden" style="background:linear-gradient(135deg,#F39C12,#E67E22);color:#fff;border-radius:var(--radius);padding:14px 20px;margin-bottom:16px;font-weight:600;animation:fadeIn .4s ease;"></div>
+
+      <!-- Leave Info Banner -->
+      <div id="leaveInfoBanner" class="hidden" style="background:linear-gradient(135deg,#E74C3C,#C0392B);color:#fff;border-radius:var(--radius-lg);padding:20px 24px;margin-bottom:20px;font-weight:600;animation:fadeIn .4s ease;"></div>
+
+      <!-- Doctor Free / Wait Panel (RED + AMBER wait state) -->
+      <div id="doctorFreePanel" class="hidden animate-in" style="background:linear-gradient(135deg,#1A5276,#2E86C1);color:#fff;border-radius:var(--radius-xl);padding:28px;margin-bottom:20px;text-align:center;">
+        <div style="font-size:1.375rem;font-weight:700;margin-bottom:8px;">🟢 Doctor is Free</div>
+        <div style="opacity:.85;font-size:.9375rem;margin-bottom:20px;line-height:1.6;" id="freePanelMsg"></div>
+        <div style="font-size:3rem;font-family:var(--font-display);font-weight:800;letter-spacing:.02em;" id="freeCountdown">--:--</div>
+        <div style="font-size:.8125rem;opacity:.7;margin-top:6px;" id="freeCountdownLabel">until call window opens</div>
+        <div style="margin-top:16px;font-size:.8125rem;opacity:.75;background:rgba(255,255,255,.1);border-radius:8px;padding:8px 16px;display:inline-block;">💡 If the patient arrives early and is ready, you can still call them from the queue table below.</div>
       </div>
 
       <!-- Stats Row -->
@@ -116,6 +146,10 @@
           <div style="text-align:center">
             <div style="font-size:.875rem;opacity:.8">Elapsed Time</div>
             <div class="timer-display" id="consultTimer">00:00</div>
+            <span id="overdueBadge" class="hidden" style="background:rgba(231,76,60,.2);border:1px solid rgba(231,76,60,.4);color:#fff;border-radius:20px;padding:4px 12px;font-size:.8125rem;font-weight:700;margin-top:8px;display:inline-block;"></span>
+            <div style="margin-top:16px;">
+              <button id="currentCompleteBtn" onclick="completeCurrentConsultation()" style="display:inline-flex;align-items:center;gap:8px;padding:10px 24px;border-radius:12px;border:2px solid rgba(255,255,255,.4);background:rgba(255,255,255,.15);color:#fff;font-size:.9375rem;font-weight:700;cursor:pointer;transition:var(--transition);backdrop-filter:blur(8px);" onmouseover="this.style.background='rgba(255,255,255,.3)';" onmouseout="this.style.background='rgba(255,255,255,.15)';">✅ Mark Consultation Complete</button>
+            </div>
           </div>
         </div>
       </div>
@@ -162,40 +196,112 @@
   </main>
 </div>
 
-<!-- Emergency Modal -->
-<div class="modal-overlay" id="emergencyModal">
+<!-- Break Modal -->
+<div class="modal-overlay" id="breakModal">
   <div class="modal">
-    <div class="modal-header" style="background:var(--danger);color:#fff;border-radius:var(--radius-xl) var(--radius-xl) 0 0">
-      <h3>🚨 Mark as Emergency</h3>
-      <button class="modal-close" style="color:rgba(255,255,255,.8)" onclick="closeModal('emergencyModal')">✕</button>
+    <div class="modal-header">
+      <h3>☕ Take a Break</h3>
+      <button class="modal-close" onclick="closeModal('breakModal')">✕</button>
     </div>
     <div class="modal-body">
-      <p>Move this patient to <strong>top of queue</strong> as an emergency case? All other patients will be notified of updated wait times.</p>
-      <input type="hidden" id="emergencyApptId"/>
+      <p style="color:var(--text-muted);margin-bottom:16px">New bookings in this time range will be blocked.</p>
+      <div id="breakAlert"></div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Break Start</label>
+          <input type="time" class="form-control" id="breakStart"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Break End</label>
+          <input type="time" class="form-control" id="breakEnd"/>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Reason (optional)</label>
+        <input class="form-control" id="breakReason" placeholder="e.g. Lunch break"/>
+      </div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeModal('emergencyModal')">Cancel</button>
-      <button class="btn btn-danger" onclick="confirmEmergency()">🚨 Yes, Emergency Priority</button>
+      <button class="btn btn-ghost" onclick="closeModal('breakModal')">Cancel</button>
+      <button class="btn" style="background:#F39C12;color:#fff" onclick="confirmBreak()">☕ Start Break</button>
     </div>
   </div>
 </div>
+
+<!-- Leave Modal -->
+<div class="modal-overlay" id="leaveModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>📅 Mark Leave Day</h3>
+      <button class="modal-close" onclick="closeModal('leaveModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="leaveAlert"></div>
+      <div class="form-group">
+        <label class="form-label">Leave Date *</label>
+        <input type="date" class="form-control" id="leaveDate"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Reason</label>
+        <input class="form-control" id="leaveReason" placeholder="e.g. Personal leave, Medical leave"/>
+      </div>
+      <div id="upcomingLeaves" style="margin-top:16px"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('leaveModal')">Cancel</button>
+      <button class="btn btn-danger" onclick="submitLeave()">📅 Mark as Leave</button>
+    </div>
+  </div>
+</div>
+
+<!-- Amber Modal -->
+<div class="modal-overlay" id="amberModal">
+  <div class="modal">
+    <div class="modal-header" style="background:#F39C12;color:#fff;border-radius:20px 20px 0 0;">
+      <h3>⚠️ Calling Early — Confirm?</h3>
+      <button class="modal-close" style="color:rgba(255,255,255,.8)" onclick="closeModal('amberModal')">✕</button>
+    </div>
+    <div class="modal-body" id="amberMessage"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="startWaitCountdown(waitStateData || {})">⏳ Wait for Their Slot</button>
+      <button class="btn" style="background:#F39C12;color:#fff;" onclick="closeModal('amberModal'); callNext(true)">📢 Call Them Now</button>
+    </div>
+  </div>
+</div>
+<input type="hidden" id="amberSlotTime" />
 
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <script src="/js/utils.js"></script>
 <script>
 if (!Auth.requireAuth('doctor')) throw new Error('Unauthorized');
 
-let doctorId = null;
-let timerInterval = null;
-let consultStart = null;
-let queueData = [];
-let socket = null;
+let doctorId         = null;
+let timerInterval    = null;
+let consultStart     = null;
+let queueData        = [];
+let socket           = null;
+let countdownInterval = null;
+let isInWaitState    = false;
+let waitStateData    = null;
+let currentAvgMin    = 15;
 
 // Socket
 function initSocket() {
   socket = io();
   if (doctorId) socket.emit('join_doctor_queue', doctorId);
   socket.on('queue_update', () => loadQueue());
+  // STATE 4: New booking interrupts wait countdown
+  socket.on('new_booking_interrupt', (data) => handleNewBookingInterrupt(data));
+  // TYPE B: Server-pushed overdue warning
+  socket.on('consult_overdue', (data) => {
+    const timerEl = document.getElementById('consultTimer');
+    const badge   = document.getElementById('overdueBadge');
+    if (timerEl) timerEl.style.color = data.over_by >= 5 ? '#E74C3C' : '#F39C12';
+    if (badge) {
+      badge.textContent = `⚠️ ${data.over_by} min over`;
+      badge.classList.remove('hidden');
+    }
+  });
 }
 
 function showSection(name) {
@@ -211,6 +317,9 @@ async function loadProfile() {
   if (!data?.success) return;
   const d = data.doctor;
   doctorId = d.id;
+  doctorInfo.name = d.name;
+  doctorInfo.room_number = d.room_number || 'consultation room';
+  currentAvgMin = d.avg_consult_min || 15;
   setText('#sideDocName', d.name);
   setText('#sideDocSpec', d.specialization);
   setText('#sideDocRoom', d.room_number ? '🚪 ' + d.room_number : '');
@@ -249,18 +358,19 @@ async function loadQueue() {
   }
 
   // Render table
-  setHTML('#queueBody', queueData.length ? queueData.map(renderQueueRow).join('') :
+  setHTML('#queueBody', queueData.length ? queueData.map((q, index) => renderQueueRow(q, index)).join('') :
     '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-muted)">No patients in queue today 🎉</td></tr>');
 }
 
-function renderQueueRow(q) {
-  const isActive = q.queue_status === 'in_consultation';
+function renderQueueRow(q, index) {
+  const qStatus = q.queue_status || q.status;
+  const isActive = qStatus === 'in_consultation';
   const isEmergency = q.priority === 'emergency';
-  const isDone = ['completed','skipped'].includes(q.queue_status);
+  const isDone = ['completed','skipped'].includes(qStatus);
   const cls = isActive ? 'in-consult' : isEmergency ? 'emergency' : isDone ? 'completed' : '';
   return `
     <tr class="${cls}">
-      <td>${q.queue_position}</td>
+      <td>${index + 1}</td>
       <td><strong>#${q.token_number}</strong></td>
       <td>
         <div style="font-weight:600">${q.family_member_name || q.patient_name}</div>
@@ -270,44 +380,675 @@ function renderQueueRow(q) {
       <td>${formatTime(q.time_slot)}</td>
       <td>
         ${priorityBadge(q.priority)}
-        ${!isEmergency && !isDone ? `<button class="btn btn-danger btn-sm" style="margin-top:4px;font-size:.7rem;padding:3px 8px" onclick="openEmergency(${q.appointment_id})">🚨 Emergency</button>` : ''}
       </td>
       <td>${statusBadge(q.queue_status || q.status)}</td>
       <td>
         ${!isDone && !isActive ? `<button class="btn btn-ghost btn-sm" onclick="skipPatient(${q.id})">⏭ Skip</button>` : ''}
-        ${isActive ? '<span class="badge badge-success">In Room</span>' : ''}
-        ${isDone ? '<span style="color:var(--text-muted);font-size:.875rem">—</span>' : ''}
+        ${isActive ? `<div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start;"><span class="badge badge-success">🟢 In Room</span><button onclick="completeConsultation(${q.appointment_id}, ${q.id})" style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:8px;border:1.5px solid var(--secondary);background:rgba(88,214,141,.1);color:var(--secondary-dark);font-size:.8125rem;font-weight:700;cursor:pointer;transition:var(--transition);" onmouseover="this.style.background='var(--secondary)';this.style.color='#fff';" onmouseout="this.style.background='rgba(88,214,141,.1)';this.style.color='var(--secondary-dark)';" title="Mark consultation as complete">✅ Complete</button></div>` : ''}
+        ${isDone ? `<button onclick="deleteQueueEntry(${q.id})" title="Remove from history" style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:8px;border:1.5px solid var(--danger-light);background:var(--danger-light);color:var(--danger);cursor:pointer;font-size:1rem;transition:var(--transition);" onmouseover="this.style.background='var(--danger)';this.style.color='#fff';this.style.borderColor='var(--danger)';" onmouseout="this.style.background='var(--danger-light)';this.style.color='var(--danger)';this.style.borderColor='var(--danger-light)';">🗑️</button>` : ''}
       </td>
     </tr>`;
 }
 
-// Call next
-async function callNext() {
-  const btn = $('#callNextBtn');
+// Doctor info reference (for socket messages)
+let doctorInfo = { name: '', room_number: '' };
+let onBreak = false;
+let onLeave = false;
+let activeBreakInfo = null; // { start_time, end_time, reason }
+let breakAutoEndTimer = null;
+
+// Format time string HH:mm to 12h format
+function formatBreakTime(t) {
+  if (!t) return '';
+  const parts = t.split(':');
+  let h = parseInt(parts[0], 10);
+  const m = parts[1];
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  if (h > 12) h -= 12;
+  if (h === 0) h = 12;
+  return `${h}:${m} ${ampm}`;
+}
+
+// Convert a date value to local YYYY-MM-DD string
+// (fixes timezone bug where toISOString() shifts IST dates back to UTC)
+function toLocalDate(d) {
+  const dt = new Date(d);
+  return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+}
+
+// ── Break / Leave Management ────────────────────────────
+function toggleBreakMode() {
+  if (onLeave) {
+    Toast.show('Cannot start break while on leave. Cancel your leave first to resume work.', 'error');
+    return;
+  }
+  if (!onBreak) {
+    // Block break during consultation
+    const current = queueData.find(q => (q.queue_status || q.status) === 'in_consultation');
+    if (current) {
+      Toast.show('Cannot start break while a patient is in consultation. Complete the current consultation first.', 'error');
+      return;
+    }
+    // Auto-fill start time with current system time
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    document.getElementById('breakStart').value = `${hh}:${mm}`;
+    document.getElementById('breakStart').min = `${hh}:${mm}`;
+    // Default end time = start + 30min
+    const endDate = new Date(now.getTime() + 30 * 60000);
+    const ehh = String(endDate.getHours()).padStart(2, '0');
+    const emm = String(endDate.getMinutes()).padStart(2, '0');
+    document.getElementById('breakEnd').value = `${ehh}:${emm}`;
+    document.getElementById('breakReason').value = '';
+    setHTML('#breakAlert', '');
+    openModal('breakModal');
+  } else {
+    endBreak();
+  }
+}
+
+async function confirmBreak() {
+  const start_time = $('#breakStart').value;
+  const end_time = $('#breakEnd').value;
+  const reason = $('#breakReason').value;
+  if (!start_time || !end_time) {
+    setHTML('#breakAlert', '<div class="alert alert-danger">Both break start and end times are required.</div>');
+    return;
+  }
+  // Validate: break start time must NOT be in the past
+  const now = new Date();
+  const currentHH = String(now.getHours()).padStart(2, '0');
+  const currentMM = String(now.getMinutes()).padStart(2, '0');
+  const currentTime = `${currentHH}:${currentMM}`;
+  if (start_time < currentTime) {
+    setHTML('#breakAlert', '<div class="alert alert-danger">Break start time cannot be in the past. Please select a time from now onwards.</div>');
+    return;
+  }
+  if (start_time >= end_time) {
+    setHTML('#breakAlert', '<div class="alert alert-danger">Break end time must be after start time.</div>');
+    return;
+  }
+  setHTML('#breakAlert', '');
+  const data = await api.post('/doctor/break', { action: 'start', start_time, end_time, reason });
+  if (data?.success) {
+    closeModal('breakModal');
+    onBreak = true;
+    activeBreakInfo = { start_time, end_time, reason };
+    updateBreakUI();
+    startBreakAutoEndTimer();
+    Toast.show('Break started. You are now unavailable.', 'success');
+  } else {
+    setHTML('#breakAlert', `<div class="alert alert-danger">${data?.message || 'Error starting break.'}</div>`);
+  }
+}
+
+async function endBreak() {
+  const data = await api.post('/doctor/break', { action: 'end' });
+  if (data?.success) {
+    onBreak = false;
+    activeBreakInfo = null;
+    clearInterval(breakAutoEndTimer);
+    updateBreakUI();
+    Toast.show('Break ended. You are available again. Slots reopened.', 'success');
+    loadQueue();
+  } else {
+    Toast.show(data?.message || 'Error ending break.', 'error');
+  }
+}
+
+function updateBreakUI() {
+  const btn = $('#breakBtn');
+  const banner = $('#sideStatusBanner');
+  const breakBanner = $('#breakInfoBanner');
+  if (onBreak) {
+    btn.textContent = '▶️ End Break';
+    btn.style.background = '#27AE60';
+    banner.classList.remove('hidden');
+    banner.style.background = '#F39C12';
+    banner.style.color = '#fff';
+    let bannerHTML = '<div style="font-weight:700;font-size:.875rem">☕ ON BREAK</div>';
+    if (activeBreakInfo) {
+      bannerHTML += `<div style="font-size:.75rem;opacity:.9;margin-top:4px">${formatBreakTime(activeBreakInfo.start_time)} — ${formatBreakTime(activeBreakInfo.end_time)}</div>`;
+      bannerHTML += '<div style="font-size:.75rem;opacity:.85;margin-top:2px" id="breakCountdown"></div>';
+      bannerHTML += '<button onclick="endBreak()" style="margin-top:8px;padding:5px 14px;border-radius:8px;border:1px solid rgba(255,255,255,.5);background:rgba(255,255,255,.2);color:#fff;cursor:pointer;font-size:.75rem;font-weight:700;transition:background .2s" onmouseover="this.style.background=\'rgba(255,255,255,.35)\'" onmouseout="this.style.background=\'rgba(255,255,255,.2)\'">▶️ End Break Now</button>';
+    }
+    banner.innerHTML = bannerHTML;
+    // Show break info banner in main area
+    if (breakBanner && activeBreakInfo) {
+      breakBanner.classList.remove('hidden');
+      breakBanner.innerHTML = `
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <span style="font-size:1.25rem">☕</span>
+          <div>
+            <div style="font-weight:700">You are on break</div>
+            <div style="font-size:.8125rem;opacity:.9">${formatBreakTime(activeBreakInfo.start_time)} — ${formatBreakTime(activeBreakInfo.end_time)}${activeBreakInfo.reason ? ' · ' + activeBreakInfo.reason : ''}</div>
+          </div>
+          <div style="margin-left:auto;display:flex;align-items:center;gap:12px">
+            <span id="breakCountdownMain" style="font-family:var(--font-display);font-weight:800;font-size:1.125rem"></span>
+            <button class="btn" onclick="endBreak()" style="background:rgba(255,255,255,.25);border:1px solid rgba(255,255,255,.4);color:#fff;font-size:.8125rem">▶️ End Break</button>
+          </div>
+        </div>`;
+    }
+    updateBreakCountdown();
+  } else {
+    btn.textContent = '☕ Start Break';
+    btn.style.background = '#F39C12';
+    banner.classList.add('hidden');
+    banner.innerHTML = '';
+    if (breakBanner) breakBanner.classList.add('hidden');
+  }
+}
+
+function updateBreakCountdown() {
+  if (!onBreak || !activeBreakInfo) return;
+  const now = new Date();
+  const [eh, em] = activeBreakInfo.end_time.split(':').map(Number);
+  const endMs = new Date(now.getFullYear(), now.getMonth(), now.getDate(), eh, em, 0).getTime();
+  const diffMs = endMs - now.getTime();
+  if (diffMs <= 0) {
+    const el1 = document.getElementById('breakCountdown');
+    const el2 = document.getElementById('breakCountdownMain');
+    if (el1) el1.textContent = 'Ending...';
+    if (el2) el2.textContent = 'Ending...';
+    return;
+  }
+  const mins = Math.floor(diffMs / 60000);
+  const secs = Math.floor((diffMs % 60000) / 1000);
+  const text = `${mins}m ${String(secs).padStart(2,'0')}s remaining`;
+  const el1 = document.getElementById('breakCountdown');
+  const el2 = document.getElementById('breakCountdownMain');
+  if (el1) el1.textContent = text;
+  if (el2) el2.textContent = `${mins}:${String(secs).padStart(2,'0')}`;
+}
+
+async function checkBreakStatus() {
+  const data = await api.get('/doctor/leaves');
+  if (!data?.success) return;
+  // Use local timezone for date comparison (not UTC)
+  const today = toLocalDate(new Date());
+  // Check active break today
+  const activeBreak = data.breaks?.find(b =>
+    toLocalDate(b.break_date) === today && b.is_active
+  );
+  if (activeBreak) {
+    onBreak = true;
+    const st = activeBreak.start_time?.substring(0, 5) || '';
+    const et = activeBreak.end_time?.substring(0, 5) || '';
+    activeBreakInfo = { start_time: st, end_time: et, reason: activeBreak.reason };
+    updateBreakUI();
+    startBreakAutoEndTimer();
+  } else {
+    if (onBreak) {
+      onBreak = false;
+      activeBreakInfo = null;
+      clearInterval(breakAutoEndTimer);
+      updateBreakUI();
+    }
+  }
+  // Check if on leave today
+  const todayLeave = data.leaves?.find(l => toLocalDate(l.leave_date) === today);
+  if (todayLeave) {
+    onLeave = true;
+    updateLeaveUI(todayLeave);
+  } else {
+    if (onLeave) {
+      onLeave = false;
+      updateLeaveUI(null);
+    }
+  }
+}
+
+// Update leave UI — show/hide banners and disable/enable buttons
+function updateLeaveUI(leaveInfo) {
+  const banner = $('#sideStatusBanner');
+  const leaveBanner = $('#leaveInfoBanner');
+  const breakBtn = $('#breakBtn');
+  const callNextBtn = $('#callNextBtn');
+
+  if (onLeave && leaveInfo) {
+    // Sidebar banner with cancel button
+    banner.classList.remove('hidden');
+    banner.style.background = '#E74C3C';
+    banner.style.color = '#fff';
+    const reason = leaveInfo.reason ? ` · ${leaveInfo.reason}` : '';
+    banner.innerHTML = `
+      <div style="font-weight:700;font-size:.875rem">🛑 ON LEAVE TODAY</div>
+      <div style="font-size:.75rem;opacity:.85;margin-top:4px">Slots are blocked for patients${reason}</div>
+      <button onclick="cancelTodayLeave()" style="margin-top:10px;padding:8px 14px;border-radius:8px;border:none;background:#fff;color:#E74C3C;cursor:pointer;font-size:.8rem;font-weight:700;transition:all .2s;width:100%;box-shadow:0 2px 6px rgba(0,0,0,.15)" onmouseover="this.style.background='#ffeaea';this.style.transform='translateY(-1px)'" onmouseout="this.style.background='#fff';this.style.transform='none'">↩️ Cancel Leave & Resume</button>`;
+
+    // Main content leave banner
+    if (leaveBanner) {
+      leaveBanner.classList.remove('hidden');
+      leaveBanner.innerHTML = `
+        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+          <span style="font-size:2rem">🛑</span>
+          <div style="flex:1">
+            <div style="font-weight:700;font-size:1.125rem">You are on leave today</div>
+            <div style="font-size:.8125rem;opacity:.9;margin-top:4px">All appointment slots are blocked. Patients cannot book appointments with you today.${reason}</div>
+          </div>
+          <button onclick="cancelTodayLeave()" style="background:#fff;border:none;color:#E74C3C;font-size:.875rem;font-weight:700;padding:12px 24px;border-radius:10px;white-space:nowrap;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.15);transition:all .2s" onmouseover="this.style.background='#ffeaea';this.style.transform='translateY(-1px)'" onmouseout="this.style.background='#fff';this.style.transform='none'">↩️ Cancel Leave & Resume Work</button>
+        </div>`;
+    }
+
+    // Disable action buttons during leave
+    if (breakBtn) {
+      breakBtn.disabled = true;
+      breakBtn.style.opacity = '0.5';
+      breakBtn.style.cursor = 'not-allowed';
+      breakBtn.title = 'Cannot start break while on leave';
+    }
+    if (callNextBtn) {
+      callNextBtn.disabled = true;
+      callNextBtn.style.opacity = '0.5';
+      callNextBtn.style.cursor = 'not-allowed';
+      callNextBtn.title = 'Cannot call patients while on leave';
+    }
+  } else {
+    // Not on leave — restore UI
+    if (leaveBanner) leaveBanner.classList.add('hidden');
+    // Only hide sidebar banner if not on break
+    if (!onBreak) {
+      banner.classList.add('hidden');
+      banner.innerHTML = '';
+    }
+    // Re-enable buttons
+    if (breakBtn) {
+      breakBtn.disabled = false;
+      breakBtn.style.opacity = '1';
+      breakBtn.style.cursor = 'pointer';
+      breakBtn.title = '';
+    }
+    if (callNextBtn) {
+      callNextBtn.disabled = false;
+      callNextBtn.style.opacity = '1';
+      callNextBtn.style.cursor = 'pointer';
+      callNextBtn.title = '';
+    }
+  }
+}
+
+// Cancel today's leave and resume work
+async function cancelTodayLeave() {
+  if (!confirm('Cancel today\'s leave and resume work? Appointment slots will reopen for patients.')) return;
+  const today = toLocalDate(new Date());
+  const data = await api.request('DELETE', '/doctor/leave', { leave_date: today });
+  if (data?.success) {
+    onLeave = false;
+    updateLeaveUI(null);
+    Toast.show('Leave cancelled! You are now available. Slots are open for patients.', 'success');
+    loadQueue();
+    loadUpcomingLeaves();
+  } else {
+    Toast.show(data?.message || 'Error cancelling leave.', 'error');
+  }
+}
+
+// Auto-end break when end_time passes
+function startBreakAutoEndTimer() {
+  clearInterval(breakAutoEndTimer);
+  breakAutoEndTimer = setInterval(async () => {
+    if (!onBreak || !activeBreakInfo) {
+      clearInterval(breakAutoEndTimer);
+      return;
+    }
+    // Update countdown display
+    updateBreakCountdown();
+    // Check if break end time has passed
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    const currentTime = `${hh}:${mm}`;
+    if (currentTime >= activeBreakInfo.end_time) {
+      clearInterval(breakAutoEndTimer);
+      // Auto-end via API
+      const data = await api.post('/doctor/break', { action: 'end' });
+      if (data?.success) {
+        onBreak = false;
+        activeBreakInfo = null;
+        updateBreakUI();
+        Toast.show('Break ended automatically — time is up! You are available again.', 'info');
+        loadQueue();
+      }
+    }
+  }, 5000); // Check every 5 seconds
+}
+
+async function submitLeave() {
+  const leave_date = $('#leaveDate').value;
+  const reason = $('#leaveReason').value;
+  if (!leave_date) { setHTML('#leaveAlert', '<div class="alert alert-danger">Please select a date.</div>'); return; }
+
+  // Validate: leave date must be strictly in the future (not today or past)
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const selectedDate = new Date(leave_date + 'T00:00:00');
+  if (selectedDate <= today) {
+    setHTML('#leaveAlert', '<div class="alert alert-danger">Cannot mark leave for today or a past date. Please select a future date.</div>');
+    return;
+  }
+
+  setHTML('#leaveAlert', '');
+  const data = await api.post('/doctor/leave', { leave_date, reason });
+  if (data?.success) {
+    Toast.show(data.message, 'success');
+    setHTML('#leaveAlert', '');
+    loadUpcomingLeaves();
+  } else {
+    setHTML('#leaveAlert', `<div class="alert alert-danger">${data?.message || 'Error.'}</div>`);
+  }
+}
+
+async function cancelLeaveDate(date) {
+  const data = await api.request('DELETE', '/doctor/leave', { leave_date: date });
+  if (data?.success) {
+    Toast.show('Leave cancelled.', 'success');
+    loadUpcomingLeaves();
+    checkBreakStatus();
+  }
+}
+
+async function loadUpcomingLeaves() {
+  const data = await api.get('/doctor/leaves');
+  if (!data?.success) return;
+  if (data.leaves?.length) {
+    setHTML('#upcomingLeaves', `
+      <label class="form-label">Upcoming Leaves</label>
+      ${data.leaves.map(l => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--bg);border-radius:var(--radius);margin-bottom:6px;font-size:.8125rem">
+          <span>📅 ${new Date(l.leave_date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })} ${l.reason ? '— ' + l.reason : ''}</span>
+          <button class="btn btn-ghost btn-sm" style="font-size:.75rem;color:var(--danger)" onclick="cancelLeaveDate('${toLocalDate(l.leave_date)}')">Cancel</button>
+        </div>
+      `).join('')}
+    `);
+  } else {
+    setHTML('#upcomingLeaves', '<p style="font-size:.8125rem;color:var(--text-muted)">No upcoming leaves.</p>');
+  }
+}
+
+// Set min date for leave picker to TOMORROW (not today or past)
+const tomorrow = new Date();
+tomorrow.setDate(tomorrow.getDate() + 1);
+document.getElementById('leaveDate').min = toLocalDate(tomorrow);
+
+// ── Time-Aware Smart Queue Calling ──────────────────────
+async function callNext(force = false) {
+  if (onLeave) {
+    Toast.show('Cannot call patients while on leave. Cancel your leave first.', 'error');
+    return;
+  }
+
+  if (!force) {
+    // Always pre-check state before proceeding
+    const check = await api.get('/doctor/queue/check-next');
+    if (!check?.success) return;
+
+    if (check.status === 'NO_PATIENTS') {
+      Toast.show('No more patients in queue. You are all done! 🎉', 'info');
+      showDoctorFreePanel(null, 'done');
+      return;
+    }
+    if (check.status === 'RED') {
+      showDoctorFreePanel(check);
+      return;
+    }
+    if (check.status === 'AMBER') {
+      // Store for the Wait button in the modal
+      waitStateData = check;
+      showAmberModal(check);
+      return;
+    }
+    // GREEN → fall through to call
+  }
+
+  // Proceed to call
+  const btn = document.getElementById('callNextBtn');
   btn.innerHTML = '<span class="loader"></span> Calling...';
   btn.disabled = true;
 
-  const data = await api.post('/doctor/call-next', {});
+  const data = await api.post('/doctor/call-next', { force });
   btn.innerHTML = '📢 Call Next Patient';
   btn.disabled = false;
 
-  if (!data?.success) { Toast.show(data?.message || 'Error', 'error'); return; }
-  if (!data.next) { Toast.show('No more patients in queue.', 'info'); } 
-  else { Toast.show(`Calling ${data.next.patient_name} — Token #${data.next.token_number}`, 'success'); }
+  // Handle server-side state rejection (safety net)
+  if (!data?.success) {
+    if (data?.blocked) {
+      showDoctorFreePanel(data);
+    } else if (data?.requiresConfirmation) {
+      waitStateData = data;
+      showAmberModal(data);
+    } else {
+      Toast.show(data?.message || 'Error calling patient.', 'error');
+    }
+    return;
+  }
 
+  // Successfully called
+  if (!data.next) {
+    Toast.show('Queue is now empty. Well done! 🎉', 'info');
+    return;
+  }
+
+  hideDoctorFreePanel();
+  showCallBanner(data.next);
   consultStart = new Date();
+  startTimer();
   loadQueue();
-  if (socket && doctorId) socket.emit('queue_updated', { doctor_id: doctorId, called_appointment_id: data.next?.appointment_id, token_number: data.next?.token_number });
+
+  if (socket && doctorId) {
+    socket.emit('queue_updated', {
+      doctor_id:             doctorId,
+      called_appointment_id: data.next.appointment_id,
+      token_number:          data.next.token_number,
+      patient_name:          data.next.display_name || data.next.patient_name,
+      message: `Dr. ${doctorInfo.name} is calling Token #${data.next.token_number}. Please come to ${doctorInfo.room_number}.`
+    });
+  }
 }
 
-// Emergency
-function openEmergency(apptId) { $('#emergencyApptId').value = apptId; openModal('emergencyModal'); }
-async function confirmEmergency() {
-  const apptId = $('#emergencyApptId').value;
-  const data = await api.post('/doctor/emergency', { appointment_id: apptId });
-  closeModal('emergencyModal');
-  if (data?.success) { Toast.show('Patient marked as emergency priority! 🚨', 'success'); loadQueue(); }
-  else Toast.show(data?.message || 'Error', 'error');
+// ── Amber Modal ─────────────────────────────────────────
+function showAmberModal(check) {
+  const name = check.patient?.display_name || check.patient?.patient_name || 'Patient';
+  document.getElementById('amberSlotTime').value = check.slot_time || '';
+  document.getElementById('amberMessage').innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+      <div style="font-size:2.5rem;">⚠️</div>
+      <div>
+        <div style="font-weight:700;font-size:1rem;">Calling <em>${name}</em> Early</div>
+        <div style="color:var(--text-muted);font-size:.875rem;">Token #${check.patient?.token_number}</div>
+      </div>
+    </div>
+    <div style="background:var(--warning-light);border-radius:var(--radius);padding:14px;font-size:.875rem;color:#9a7d0a;line-height:1.7;">
+      This patient's scheduled slot is <strong>${formatTime(check.slot_time)}</strong>.<br>
+      Current time: <strong>${new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' })}</strong>.<br>
+      You would be calling them <strong>${check.minutes_early} minute(s) early</strong>.
+    </div>
+    <p style="margin-top:12px;font-size:.8125rem;color:var(--text-muted);">💡 Tip: Only call early if the patient is physically present and ready.</p>`;
+  openModal('amberModal');
+}
+
+function startWaitCountdown(check) {
+  closeModal('amberModal');
+  // Use stored waitStateData if check is empty (modal fallback)
+  const data = (check && check.slot_time) ? check : waitStateData;
+  if (data) showDoctorFreePanel(data);
+}
+
+// ── Doctor Free Panel (RED + AMBER wait state) ──────────
+function showDoctorFreePanel(check, mode = 'waiting') {
+  isInWaitState = true;
+  waitStateData = check;
+
+  const panel = document.getElementById('doctorFreePanel');
+  const btn   = document.getElementById('callNextBtn');
+
+  if (mode === 'done') {
+    document.getElementById('freePanelMsg').textContent = 'All patients for today have been seen. Great work!';
+    document.getElementById('freeCountdown').textContent = '🎉';
+    document.getElementById('freeCountdownLabel').textContent = '';
+    panel.classList.remove('hidden');
+    btn.disabled = true;
+    btn.textContent = '✅ Queue Complete';
+    return;
+  }
+
+  const name = check?.patient?.display_name || check?.patient?.patient_name || 'Next patient';
+  document.getElementById('freePanelMsg').innerHTML =
+    `<strong>${name}</strong> (Token #${check?.patient?.token_number}) has a slot at <strong>${formatTime(check?.slot_time)}</strong>`;
+  panel.classList.remove('hidden');
+  btn.disabled = true;
+  btn.textContent = '⏳ Waiting for Next Slot...';
+  runGreenWindowCountdown(check);
+}
+
+function hideDoctorFreePanel() {
+  isInWaitState = false;
+  waitStateData = null;
+  clearInterval(countdownInterval);
+  document.getElementById('doctorFreePanel').classList.add('hidden');
+  const btn = document.getElementById('callNextBtn');
+  btn.disabled = false;
+  btn.textContent = '📢 Call Next Patient';
+}
+
+function runGreenWindowCountdown(check) {
+  clearInterval(countdownInterval);
+  const WINDOW_MIN = 10;
+  const [h, m] = check.slot_time.split(':').map(Number);
+
+  countdownInterval = setInterval(() => {
+    const now    = new Date();
+    const target = new Date();
+    target.setHours(h, m - WINDOW_MIN, 0, 0);
+    const diffMs = target - now;
+
+    if (diffMs <= 0) {
+      clearInterval(countdownInterval);
+      document.getElementById('freeCountdown').textContent = '✅ Ready!';
+      document.getElementById('freeCountdownLabel').textContent = 'Call window is now open';
+      const btn = document.getElementById('callNextBtn');
+      btn.disabled = false;
+      btn.textContent = '📢 Call Next Patient';
+      btn.style.animation = 'pulse 1s 3';
+      Toast.show(`${check?.patient?.display_name || 'Next patient'}'s slot window is now open. You can call them!`, 'success');
+      return;
+    }
+
+    const totalSec = Math.floor(diffMs / 1000);
+    const mins = String(Math.floor(totalSec / 60)).padStart(2, '0');
+    const secs = String(totalSec % 60).padStart(2, '0');
+    document.getElementById('freeCountdown').textContent = `${mins}:${secs}`;
+  }, 1000);
+}
+
+// ── STATE 4 Handler — New Booking Interrupt ─────────────
+function handleNewBookingInterrupt(data) {
+  // Show a visible NEW BOOKING alert banner
+  const existing = document.getElementById('newBookingBanner');
+  if (existing) existing.remove();
+
+  const banner = document.createElement('div');
+  banner.className = 'animate-in';
+  banner.id = 'newBookingBanner';
+  banner.innerHTML = `
+    <div style="background:linear-gradient(135deg,#1A5276,#2E86C1);color:#fff;border-radius:var(--radius-xl);padding:18px 22px;margin-bottom:16px;display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+      <div style="display:flex;gap:14px;align-items:center;">
+        <span style="font-size:2rem;">🔵</span>
+        <div>
+          <div style="font-weight:700;font-size:1rem;margin-bottom:4px;">New Patient Just Booked!</div>
+          <div style="opacity:.9;font-size:.875rem;line-height:1.6;">${data.message}</div>
+        </div>
+      </div>
+      <button onclick="dismissNewBookingBanner()" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:8px;padding:6px 14px;cursor:pointer;font-weight:600;white-space:nowrap;">Dismiss ✕</button>
+    </div>`;
+
+  const queueSection = document.getElementById('section-queue');
+  const firstCard = queueSection.querySelector('.card:not(#doctorFreePanel)');
+  queueSection.insertBefore(banner, firstCard);
+  setTimeout(() => banner?.remove(), 20000);
+
+  // If doctor was in wait state, interrupt and re-evaluate
+  if (isInWaitState) {
+    clearInterval(countdownInterval);
+
+    if (data.state === 'GREEN') {
+      hideDoctorFreePanel();
+      Toast.show(`New booking interrupts wait! ${data.patient_name} (Token #${data.token_number}) is ready to be called.`, 'success');
+      const btn = document.getElementById('callNextBtn');
+      btn.disabled = false;
+      btn.textContent = '📢 Call Next Patient';
+    } else if (data.state === 'AMBER') {
+      hideDoctorFreePanel();
+      showAmberModal({
+        patient:       { display_name: data.patient_name, token_number: data.token_number },
+        slot_time:     data.time_slot,
+        minutes_early: data.minutes_early
+      });
+    } else {
+      // RED: new patient also too early — restart countdown for the earlier slot
+      Toast.show(`New booking received (${data.patient_name} — ${formatTime(data.time_slot)}). Still waiting for slot window...`, 'info');
+      runGreenWindowCountdown({
+        slot_time: data.time_slot,
+        patient:   { display_name: data.patient_name, token_number: data.token_number }
+      });
+      document.getElementById('freePanelMsg').innerHTML =
+        `<strong>${data.patient_name}</strong> (Token #${data.token_number}) just booked slot at <strong>${formatTime(data.time_slot)}</strong> — waiting for their window`;
+    }
+  }
+  loadQueue();
+}
+
+function dismissNewBookingBanner() {
+  document.getElementById('newBookingBanner')?.remove();
+}
+
+// ── Call Banner ─────────────────────────────────────────
+function showCallBanner(next) {
+  const name = next.display_name || next.patient_name;
+  document.getElementById('callBannerText').textContent =
+    `Now calling: ${name} — Token #${next.token_number}. Patient has been notified.`;
+  document.getElementById('callBanner').classList.remove('hidden');
+  setTimeout(() => document.getElementById('callBanner').classList.add('hidden'), 8000);
+}
+
+// Complete consultation (does NOT auto-call next patient)
+async function completeConsultation(appointmentId, queueId) {
+  const confirmed = confirm('Mark this consultation as complete?\n\nThe next patient will NOT be called automatically.\nClick "Call Next Patient" when you are ready.');
+  if (!confirmed) return;
+
+  const data = await api.post('/doctor/complete-consultation', {
+    appointment_id: appointmentId,
+    queue_id: queueId
+  });
+
+  if (data?.success) {
+    Toast.show('Consultation complete. Click "Call Next Patient" when ready.', 'success', '✅ Consultation Done', 6000);
+    consultStart = null;
+    clearInterval(timerInterval);
+    document.getElementById('consultTimer').textContent = '00:00';
+    document.getElementById('consultTimer').style.color = '#fff';
+    const badge = document.getElementById('overdueBadge');
+    if (badge) badge.classList.add('hidden');
+    document.getElementById('currentPatientCard').classList.add('hidden');
+    const callBtn = document.getElementById('callNextBtn');
+    if (callBtn) {
+      callBtn.disabled = false;
+      callBtn.textContent = '📢 Call Next Patient';
+    }
+    loadQueue();
+  } else {
+    Toast.show(data?.message || 'Could not complete consultation.', 'error');
+  }
+}
+
+// Called from the current patient card button
+async function completeCurrentConsultation() {
+  const current = queueData?.find(q => q.queue_status === 'in_consultation');
+  if (!current) {
+    Toast.show('No active consultation found.', 'error');
+    return;
+  }
+  await completeConsultation(current.appointment_id, current.id);
 }
 
 // Skip
@@ -317,15 +1058,43 @@ async function skipPatient(queueId) {
   else Toast.show(data?.message || 'Error', 'error');
 }
 
+// Delete/hide completed or skipped queue entry
+async function deleteQueueEntry(queueId) {
+  if (!confirm('Remove this patient from today\'s history?\n\nNote: Consultation records and analytics are preserved.')) return;
+  const data = await api.delete(`/doctor/queue/${queueId}`);
+  if (data?.success) {
+    Toast.show('Patient record removed from today\'s history.', 'info');
+    loadQueue();
+  } else {
+    Toast.show(data?.message || 'Could not remove this entry.', 'error');
+  }
+}
+
 // Timer
 function startTimer() {
   clearInterval(timerInterval);
   timerInterval = setInterval(() => {
     if (!consultStart) return;
     const diff = Math.floor((new Date() - consultStart) / 1000);
-    const m = String(Math.floor(diff/60)).padStart(2,'0');
-    const s = String(diff%60).padStart(2,'0');
+    const mins = Math.floor(diff / 60);
+    const m = String(mins).padStart(2,'0');
+    const s = String(diff % 60).padStart(2,'0');
     setText('#consultTimer', `${m}:${s}`);
+
+    // Overdue detection
+    const timerEl = document.getElementById('consultTimer');
+    const badge   = document.getElementById('overdueBadge');
+    if (mins >= currentAvgMin) {
+      const overBy = mins - currentAvgMin;
+      if (timerEl) timerEl.style.color = overBy >= 5 ? '#E74C3C' : '#F39C12';
+      if (badge) {
+        badge.textContent = `⚠️ ${overBy} min over`;
+        badge.classList.remove('hidden');
+      }
+    } else {
+      if (timerEl) timerEl.style.color = '#fff';
+      if (badge) badge.classList.add('hidden');
+    }
   }, 1000);
 }
 
@@ -369,6 +1138,7 @@ async function loadAnalytics() {
 
 // Init
 loadProfile();
+checkBreakStatus();
 // Auto-refresh every 30s
 setInterval(loadQueue, 30000);
 </script>

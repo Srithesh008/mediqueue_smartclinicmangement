@@ -79,6 +79,10 @@ io.on('connection', (socket) => {
 // Make io accessible in controllers via req.app.get('io')
 app.set('io', io);
 
+// ── Scheduled Background Tasks ───────────────────────────
+const { sendUpcomingReminders } = require('./controllers/doctorController');
+setInterval(() => sendUpcomingReminders(io), 60 * 1000);
+
 // ── SPA Fallback ──────────────────────────────────────────
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));

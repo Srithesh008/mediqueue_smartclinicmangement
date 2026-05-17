@@ -1,1 +1,0 @@
-# mediqueue_smartclinicmangement

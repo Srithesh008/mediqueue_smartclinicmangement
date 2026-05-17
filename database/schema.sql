@@ -90,6 +90,7 @@ CREATE TABLE IF NOT EXISTS queue (
   queue_date      DATE NOT NULL,
   queue_position  INT NOT NULL,
   status          ENUM('waiting','in_consultation','completed','skipped') DEFAULT 'waiting',
+  is_hidden       TINYINT(1) DEFAULT 0,
   entered_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   called_at       DATETIME,
   FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE CASCADE,
@@ -137,6 +138,34 @@ CREATE TABLE IF NOT EXISTS notifications (
 );
 
 -- ─────────────────────────────────────────────────────────
+-- DOCTOR LEAVES TABLE
+-- ─────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS doctor_leaves (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  doctor_id   INT NOT NULL,
+  leave_date  DATE NOT NULL,
+  reason      VARCHAR(200),
+  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY unique_leave (doctor_id, leave_date),
+  FOREIGN KEY (doctor_id) REFERENCES doctors(id) ON DELETE CASCADE
+);
+
+-- ─────────────────────────────────────────────────────────
+-- DOCTOR BREAKS TABLE
+-- ─────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS doctor_breaks (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  doctor_id   INT NOT NULL,
+  break_date  DATE NOT NULL,
+  start_time  TIME NOT NULL,
+  end_time    TIME NOT NULL,
+  reason      VARCHAR(200),
+  is_active   TINYINT(1) DEFAULT 1,
+  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (doctor_id) REFERENCES doctors(id) ON DELETE CASCADE
+);
+
+-- ─────────────────────────────────────────────────────────
 -- SEED DATA
 -- ─────────────────────────────────────────────────────────
 
@@ -161,3 +190,4 @@ INSERT INTO doctors (user_id, specialization, qualification, experience_yrs, avg
 INSERT INTO users (name, email, phone, password, role, gender, blood_group) VALUES
 ('Arjun Kumar', 'arjun@email.com', '9123456789',
  '$2a$10$Tciy8JlouOBeHouLjVlQnuf/q23AN8Jk56EWVHTIec19MfatDn3nO', 'patient', 'male', 'O+');
+

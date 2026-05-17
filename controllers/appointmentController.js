@@ -28,6 +28,30 @@ const getAvailableSlots = async (req, res) => {
     const [docRows] = await db.query('SELECT avg_consult_min FROM doctors WHERE id = ?', [doctor_id]);
     if (!docRows.length) return res.status(404).json({ success: false, message: 'Doctor not found.' });
 
+    // Check if doctor is on leave this date
+    const [leaveCheck] = await db.query(
+      `SELECT id FROM doctor_leaves
+       WHERE doctor_id=? AND leave_date=?`,
+      [doctor_id, date]
+    );
+    if (leaveCheck.length) {
+      return res.json({
+        success: true, slots: [],
+        avg_consult_min: docRows[0].avg_consult_min || 15,
+        message: 'Doctor is on leave on this date.',
+        on_leave: true
+      });
+    }
+
+    // Check active breaks
+    const [breakCheck] = await db.query(
+      `SELECT TIME_FORMAT(start_time, '%H:%i') AS start_time,
+              TIME_FORMAT(end_time, '%H:%i') AS end_time
+       FROM doctor_breaks
+       WHERE doctor_id=? AND break_date=? AND is_active=1`,
+      [doctor_id, date]
+    );
+
     const avgMin = docRows[0].avg_consult_min || 15;
     const startHour = 9, endHour = 18;
     const allSlots = [];
@@ -51,10 +75,16 @@ const getAvailableSlots = async (req, res) => {
     );
     const bookedSlots = booked.map(r => r.slot);
 
-    const slots = allSlots.map(slot => ({
-      time:      slot,
-      available: !bookedSlots.includes(slot)
-    }));
+    const slots = allSlots.map(slot => {
+      const isInBreak = breakCheck.some(b =>
+        slot >= b.start_time && slot < b.end_time
+      );
+      return {
+        time:      slot,
+        available: !bookedSlots.includes(slot) && !isInBreak,
+        on_break:  isInBreak || undefined
+      };
+    });
 
     res.json({ success: true, slots, avg_consult_min: avgMin });
   } catch (err) {
@@ -125,6 +155,17 @@ const bookAppointment = async (req, res) => {
     );
 
     await conn.commit();
+
+    // STATE 4: Notify doctor if they are in a wait state (new booking interrupt)
+    try {
+      const { notifyDoctorNewBooking } = require('./doctorController');
+      const io = req.app.get('io');
+      if (io) {
+        await notifyDoctorNewBooking(io, doctor_id, result.insertId, time_slot);
+      }
+    } catch (interruptErr) {
+      console.error('Interrupt notification error (non-fatal):', interruptErr);
+    }
 
     res.status(201).json({
       success: true,
@@ -214,6 +255,56 @@ const cancelAppointment = async (req, res) => {
     await db.query('UPDATE appointments SET status="cancelled" WHERE id=?', [req.params.id]);
     await db.query('UPDATE queue SET status="skipped" WHERE appointment_id=?', [req.params.id]);
 
+    // Find the next waiting patient for the same doctor & date
+    const [nextPatient] = await db.query(`
+      SELECT q.id AS queue_id, q.appointment_id, a.patient_id,
+             a.token_number, a.time_slot
+      FROM queue q
+      JOIN appointments a ON q.appointment_id = a.id
+      WHERE q.doctor_id = (
+        SELECT doctor_id FROM appointments WHERE id = ?
+      )
+      AND q.queue_date = (
+        SELECT appointment_date FROM appointments WHERE id = ?
+      )
+      AND q.status = 'waiting'
+      ORDER BY a.time_slot ASC, q.queue_position ASC
+      LIMIT 1
+    `, [req.params.id, req.params.id]);
+
+    if (nextPatient.length) {
+      // Recalculate all waiting patients' estimated_wait
+      const [allWaiting] = await db.query(`
+        SELECT q.appointment_id FROM queue q
+        JOIN appointments a ON q.appointment_id = a.id
+        WHERE q.doctor_id = (SELECT doctor_id FROM appointments WHERE id=?)
+          AND q.queue_date = (SELECT appointment_date FROM appointments WHERE id=?)
+          AND q.status = 'waiting'
+        ORDER BY a.time_slot ASC
+      `, [req.params.id, req.params.id]);
+
+      const [docRow] = await db.query(
+        'SELECT avg_consult_min FROM doctors WHERE id = (SELECT doctor_id FROM appointments WHERE id=?)',
+        [req.params.id]
+      );
+      const avg = docRow[0]?.avg_consult_min || 15;
+      for (let i = 0; i < allWaiting.length; i++) {
+        await db.query(
+          'UPDATE appointments SET estimated_wait=? WHERE id=?',
+          [i * avg, allWaiting[i].appointment_id]
+        );
+      }
+
+      // Notify the next patient their wait just reduced
+      await db.query(
+        `INSERT INTO notifications (user_id, title, message, type)
+         VALUES (?, 'Queue Updated',
+         'A patient ahead of you cancelled. Your wait time has reduced!',
+         'queue')`,
+        [nextPatient[0].patient_id]
+      );
+    }
+
     res.json({ success: true, message: 'Appointment cancelled.' });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server error.' });
@@ -288,8 +379,58 @@ const getQueuePosition = async (req, res) => {
   }
 };
 
+// ── Get notifications for current user ────────────────────
+const getNotifications = async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      `SELECT id, title, message, type, is_read, created_at
+       FROM notifications
+       WHERE user_id = ?
+       ORDER BY created_at DESC
+       LIMIT 50`,
+      [req.user.id]
+    );
+    // Count unread
+    const unread = rows.filter(r => !r.is_read).length;
+    res.json({ success: true, notifications: rows, unread });
+  } catch (err) {
+    console.error('getNotifications error:', err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+// ── Delete a single notification ──────────────────────────
+const deleteNotification = async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      'SELECT id FROM notifications WHERE id = ? AND user_id = ?',
+      [req.params.id, req.user.id]
+    );
+    if (!rows.length) {
+      return res.status(404).json({ success: false, message: 'Notification not found.' });
+    }
+    await db.query('DELETE FROM notifications WHERE id = ?', [req.params.id]);
+    res.json({ success: true, message: 'Notification cleared.' });
+  } catch (err) {
+    console.error('deleteNotification error:', err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+// ── Clear all notifications for current user ──────────────
+const clearAllNotifications = async (req, res) => {
+  try {
+    await db.query('DELETE FROM notifications WHERE user_id = ?', [req.user.id]);
+    res.json({ success: true, message: 'All notifications cleared.' });
+  } catch (err) {
+    console.error('clearAllNotifications error:', err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
 module.exports = {
   getDoctors, getAvailableSlots, bookAppointment,
   getMyAppointments, getAppointment, cancelAppointment,
-  rescheduleAppointment, getQueuePosition
+  rescheduleAppointment, getQueuePosition,
+  getNotifications, deleteNotification, clearAllNotifications
 };

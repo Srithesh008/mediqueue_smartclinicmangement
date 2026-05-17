@@ -12,7 +12,42 @@
     .info-item p { font-weight:600; margin-top:3px; }
     .family-card { background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius); padding:16px; margin-bottom:12px; display:flex; align-items:center; gap:12px; }
     .family-avatar { width:44px; height:44px; border-radius:50%; background:linear-gradient(135deg,var(--primary),var(--secondary)); display:flex; align-items:center; justify-content:center; color:#fff; font-weight:700; flex-shrink:0; }
+    .field-error { color:#e74c3c; font-size:.8125rem; margin-top:4px; display:none; }
+    .field-error.visible { display:block; }
+    .form-control.input-error { border-color:#e74c3c; box-shadow:0 0 0 2px rgba(231,76,60,.15); }
+    .back-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 8px 16px;
+      border-radius: 10px;
+      border: 1.5px solid var(--border);
+      background: var(--surface);
+      color: var(--text-secondary);
+      font-size: .875rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: var(--transition);
+      margin-bottom: 20px;
+      text-decoration: none;
+      box-shadow: var(--shadow-sm);
+    }
+    .back-btn:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+      background: rgba(46,134,193,.06);
+      box-shadow: var(--shadow);
+    }
+    .back-btn svg {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+    }
     @media(max-width:600px){ .info-grid { grid-template-columns:1fr; } }
+    @media (max-width: 480px) {
+      .back-btn span { display: none; }
+      .back-btn { padding: 8px 10px; }
+    }
   </style>
 </head>
 <body>
@@ -42,6 +77,10 @@
 </nav>
 
 <div style="max-width:900px;margin:0 auto;padding:32px 24px">
+  <button class="back-btn" onclick="goBack()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+    <span>Back</span>
+  </button>
   <div style="display:grid;grid-template-columns:300px 1fr;gap:24px;align-items:start">
 
     <!-- Left: Avatar Card -->
@@ -90,7 +129,7 @@
             <div class="form-group"><label class="form-label">Gender</label>
               <select class="form-control" id="edit_gender"><option value="">Select</option><option value="male">Male</option><option value="female">Female</option><option value="other">Other</option></select>
             </div>
-            <div class="form-group"><label class="form-label">Date of Birth</label><input type="date" class="form-control" id="edit_dob"/></div>
+            <div class="form-group"><label class="form-label">Date of Birth</label><input type="date" class="form-control" id="edit_dob" min="1900-01-01" oninput="onEditDobInput()"/><span class="field-error" id="editDobError">⚠️ You must be 18 years or older.</span></div>
           </div>
           <div class="form-row">
             <div class="form-group"><label class="form-label">Blood Group</label>
@@ -133,7 +172,7 @@
         </div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">Date of Birth</label><input type="date" class="form-control" id="fm_dob"/></div>
+        <div class="form-group"><label class="form-label">Date of Birth</label><input type="date" class="form-control" id="fm_dob" min="1900-01-01"/></div>
         <div class="form-group"><label class="form-label">Blood Group</label>
           <select class="form-control" id="fm_blood"><option value="">Select</option><option>A+</option><option>A-</option><option>B+</option><option>B-</option><option>O+</option><option>O-</option><option>AB+</option><option>AB-</option></select>
         </div>
@@ -148,7 +187,43 @@
 
 <script src="/js/utils.js"></script>
 <script>
+function goBack() {
+  window.location.href = '/patient-dashboard.html';
+}
+
 if (!Auth.requireAuth()) throw new Error('Unauthorized');
+
+// Set max date for DOB fields (prevent future dates)
+const todayStr = new Date().toISOString().split('T')[0];
+document.getElementById('edit_dob').max = todayStr;
+document.getElementById('fm_dob').max = todayStr;
+
+// Age validation — must be 18+
+function validateAge(dobValue) {
+  if (!dobValue) return true; // optional field, skip if empty
+  const today = new Date();
+  const dob = new Date(dobValue);
+  let age = today.getFullYear() - dob.getFullYear();
+  const m = today.getMonth() - dob.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
+  return age >= 18;
+}
+
+// Real-time DOB validation on profile edit
+function onEditDobInput() {
+  const dobVal = $('#edit_dob').value;
+  const errEl = $('#editDobError');
+  const saveBtn = $('#saveBtn');
+  if (dobVal && !validateAge(dobVal)) {
+    errEl.classList.add('visible');
+    $('#edit_dob').classList.add('input-error');
+    saveBtn.disabled = true;
+  } else {
+    errEl.classList.remove('visible');
+    $('#edit_dob').classList.remove('input-error');
+    saveBtn.disabled = false;
+  }
+}
 
 let profileData = null;
 
@@ -205,6 +280,12 @@ function enterEdit() {
 function cancelEdit() { show('#viewCard'); hide('#editCard'); }
 
 async function saveProfile() {
+  // Final age check before saving
+  if (!validateAge($('#edit_dob').value)) {
+    Toast.show('You must be 18 years or older.', 'error');
+    return;
+  }
+
   const btn = $('#saveBtn');
   btn.innerHTML = '<span class="loader"></span> Saving...';
   btn.disabled = true;

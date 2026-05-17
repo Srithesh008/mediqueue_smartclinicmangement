@@ -159,7 +159,10 @@
 
     <!-- Notifications Section -->
     <div id="section-notifications" class="hidden">
-      <div class="section-title">Notifications</div>
+      <div class="section-title">
+        Notifications <span id="notifBadgeSection" style="background:var(--primary);color:#fff;border-radius:20px;padding:2px 10px;font-size:.75rem;font-weight:700;margin-left:8px;"></span>
+        <button class="btn btn-ghost btn-sm" onclick="clearAllNotifications()" id="clearAllBtn" style="color:var(--danger);font-size:.8125rem;">🗑️ Clear All</button>
+      </div>
       <div class="card">
         <div class="card-body" id="notificationsList">
           <div class="page-loader"><span class="loader loader-dark"></span></div>
@@ -218,10 +221,79 @@ function initSocket() {
   socket.on('your_turn', data => {
     Toast.show(data.message, 'success', '🔔 Your Turn!');
     loadAppointments();
+    loadNotifications(); // refresh badge
   });
   socket.on('wait_update', data => {
     updateLiveQueue(data);
   });
+
+  // TYPE A: 5-minute heads-up reminder
+  socket.on('five_min_reminder', (data) => {
+    showReminderBanner(data);
+    Toast.show(data.message, 'success', data.title, 10000);
+    if (Notification.permission === 'granted') {
+      new Notification(data.title, { body: data.message });
+    }
+    loadNotifications(); // refresh badge
+  });
+
+  // TYPE B: Delay apology notification
+  socket.on('delay_notification', (data) => {
+    showDelayNotification(data);
+    Toast.show(`Wait time increased by ~${data.extra_wait} min`, 'warning', data.title, 12000);
+    if (Notification.permission === 'granted') {
+      new Notification(data.title, { body: data.message });
+    }
+    loadAppointments(); // refresh estimated wait times
+    loadNotifications(); // refresh badge
+  });
+}
+
+// ── 5-Minute Reminder Banner ──────────────────────────────
+function showReminderBanner(data) {
+  let banner = document.getElementById('reminderBanner');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'reminderBanner';
+    const navbar = document.querySelector('.navbar');
+    navbar.insertAdjacentElement('afterend', banner);
+  }
+  banner.innerHTML = `
+    <div style="background:linear-gradient(135deg,var(--secondary-dark,#1a8a50),#1a8a50);color:#fff;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px;animation:slideIn .4s ease;position:sticky;top:68px;z-index:90;flex-wrap:wrap;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <span style="font-size:1.75rem;">⏰</span>
+        <div>
+          <div style="font-weight:700;font-size:1rem;">${data.title}</div>
+          <div style="opacity:.9;font-size:.875rem;line-height:1.5;">${data.message}</div>
+        </div>
+      </div>
+      <button onclick="document.getElementById('reminderBanner').remove()" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:8px;padding:6px 14px;cursor:pointer;font-weight:600;">Got it ✓</button>
+    </div>`;
+  setTimeout(() => banner?.remove(), 30000);
+}
+
+// ── Delay Apology Banner ──────────────────────────────────
+function showDelayNotification(data) {
+  let banner = document.getElementById('delayBanner');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'delayBanner';
+    const navbar = document.querySelector('.navbar');
+    navbar.insertAdjacentElement('afterend', banner);
+  }
+  banner.innerHTML = `
+    <div style="background:linear-gradient(135deg,#d4880a,#F39C12);color:#fff;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px;animation:slideIn .4s ease;flex-wrap:wrap;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <span style="font-size:1.75rem;">🙏</span>
+        <div>
+          <div style="font-weight:700;font-size:.9375rem;">${data.title}</div>
+          <div style="opacity:.92;font-size:.875rem;margin-top:3px;line-height:1.5;">${data.message}</div>
+          <div style="margin-top:8px;background:rgba(0,0,0,.15);border-radius:6px;padding:5px 12px;font-size:.8125rem;display:inline-block;">⏱ Extra wait: ~${data.extra_wait} minutes</div>
+        </div>
+      </div>
+      <button onclick="document.getElementById('delayBanner').remove()" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:8px;padding:6px 14px;cursor:pointer;font-weight:600;white-space:nowrap;">OK, I'll Wait ✓</button>
+    </div>`;
+  setTimeout(() => banner?.remove(), 60000);
 }
 
 // Section navigation
@@ -243,6 +315,15 @@ async function loadAppointments() {
   renderStats();
   renderUpcoming();
   renderAllAppointments();
+
+  // Auto-join Socket.io rooms for ALL active appointments
+  // so the patient receives 5-min reminders & delay notifications
+  if (socket) {
+    const active = allAppointments.filter(a =>
+      ['scheduled', 'waiting', 'in_consultation'].includes(a.status)
+    );
+    active.forEach(a => socket.emit('join_appointment', a.id));
+  }
 }
 
 function renderStats() {
@@ -372,25 +453,102 @@ function updateLiveQueue(data) {
   if (big) big.textContent = '#' + data.position;
 }
 
-// Notifications
+// Notifications — real DB-backed
 async function loadNotifications() {
-  // Using appointment data to simulate notifications
-  const notifs = allAppointments.slice(0, 8).map(a => ({
-    title:   a.status === 'completed' ? 'Consultation Completed' : 'Appointment ' + a.status,
-    message: `${a.doctor_name} on ${formatDate(a.appointment_date)} at ${formatTime(a.time_slot)}`,
-    is_read: a.status === 'completed',
-    type:    'appointment'
-  }));
+  const data = await api.get('/appointments/notifications');
+  if (!data?.success) {
+    setHTML('#notificationsList', '<p class="text-muted text-center" style="padding:24px">Could not load notifications.</p>');
+    return;
+  }
+
+  const notifs = data.notifications;
+  const unread = data.unread || 0;
+
+  // Update navbar badge
+  const badge = document.getElementById('notifCount');
+  if (badge) {
+    if (unread > 0) {
+      badge.textContent = unread > 9 ? '9+' : unread;
+      badge.classList.remove('hidden');
+    } else {
+      badge.classList.add('hidden');
+    }
+  }
+
+  // Update section badge
+  const secBadge = document.getElementById('notifBadgeSection');
+  if (secBadge) secBadge.textContent = notifs.length ? `${notifs.length}` : '';
+
+  // Show/hide Clear All button
+  const clearBtn = document.getElementById('clearAllBtn');
+  if (clearBtn) clearBtn.style.display = notifs.length ? '' : 'none';
 
   const icons = { appointment: '📅', queue: '🔔', system: '⚙️', emergency: '🚨' };
-  setHTML('#notificationsList', notifs.length ? notifs.map(n => `
-    <div class="notif-item">
-      <div class="notif-dot ${n.is_read ? '' : 'unread'}"></div>
-      <div>
-        <div style="font-weight:${n.is_read ? '400' : '600'};font-size:.9375rem">${icons[n.type]||'🔔'} ${n.title}</div>
-        <div style="font-size:.8125rem;color:var(--text-muted);margin-top:2px">${n.message}</div>
+
+  setHTML('#notificationsList', notifs.length ? notifs.map(n => {
+    const timeAgo = formatTimeAgo(n.created_at);
+    return `
+    <div class="notif-item" id="notif-${n.id}" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+      <div style="display:flex;gap:12px;flex:1;min-width:0;">
+        <div class="notif-dot ${n.is_read ? '' : 'unread'}"></div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:${n.is_read ? '400' : '600'};font-size:.9375rem;">${icons[n.type]||'🔔'} ${n.title}</div>
+          <div style="font-size:.8125rem;color:var(--text-muted);margin-top:3px;line-height:1.5;">${n.message}</div>
+          <div style="font-size:.75rem;color:var(--text-muted);margin-top:6px;opacity:.7;">🕐 ${timeAgo}</div>
+        </div>
       </div>
-    </div>`).join('') : '<p class="text-muted text-center" style="padding:24px">No notifications</p>');
+      <button onclick="deleteNotification(${n.id})" title="Clear" style="flex-shrink:0;width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.875rem;transition:var(--transition);" onmouseover="this.style.background='var(--danger-light,#fde8e8)';this.style.color='var(--danger)';this.style.borderColor='var(--danger)';" onmouseout="this.style.background='var(--bg)';this.style.color='var(--text-muted)';this.style.borderColor='var(--border)';">✕</button>
+    </div>`;
+  }).join('') : `
+    <div class="text-center" style="padding:40px;color:var(--text-muted);">
+      <div style="font-size:2.5rem;margin-bottom:12px;">🔔</div>
+      <p>No notifications yet</p>
+      <p style="font-size:.8125rem;opacity:.7;margin-top:6px;">You'll see appointment updates, queue reminders, and alerts here.</p>
+    </div>`);
+}
+
+async function deleteNotification(id) {
+  const el = document.getElementById(`notif-${id}`);
+  if (el) {
+    el.style.opacity = '0.3';
+    el.style.transition = 'opacity .3s';
+  }
+  const data = await api.delete(`/appointments/notifications/${id}`);
+  if (data?.success) {
+    if (el) el.remove();
+    // Refresh count
+    loadNotifications();
+  } else {
+    if (el) el.style.opacity = '1';
+    Toast.show(data?.message || 'Could not clear notification.', 'error');
+  }
+}
+
+async function clearAllNotifications() {
+  if (!confirm('Clear all notifications? This cannot be undone.')) return;
+  const data = await api.delete('/appointments/notifications');
+  if (data?.success) {
+    Toast.show('All notifications cleared.', 'success');
+    loadNotifications();
+  } else {
+    Toast.show(data?.message || 'Could not clear notifications.', 'error');
+  }
+}
+
+// Relative time helper
+function formatTimeAgo(dateStr) {
+  if (!dateStr) return '';
+  const now  = new Date();
+  const then = new Date(dateStr);
+  const diffMs = now - then;
+  const mins  = Math.floor(diffMs / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  return then.toLocaleDateString('en-IN', { day:'numeric', month:'short' });
 }
 
 // Cancel
@@ -411,6 +569,24 @@ $('#confirmCancelBtn').addEventListener('click', async () => {
 // Init
 initSocket();
 loadAppointments();
+loadNotifications(); // Load badge count immediately
+
+// 🔔 Notification bell button → navigate to notifications section
+const notifBtnEl = document.getElementById('notifBtn');
+if (notifBtnEl) {
+  notifBtnEl.addEventListener('click', () => {
+    showSection('notifications');
+    // Also highlight the correct sidebar link
+    $$('.sidebar-link').forEach(el => el.classList.remove('active'));
+    const notifLink = [...$$('.sidebar-link')].find(el => el.textContent.includes('Notifications'));
+    if (notifLink) notifLink.classList.add('active');
+  });
+}
+
+// Request browser notification permission
+if ('Notification' in window && Notification.permission === 'default') {
+  Notification.requestPermission();
+}
 </script>
 </body>
 </html>
